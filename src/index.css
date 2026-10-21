@@ -1,0 +1,55 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Rubik', 'Plus Jakarta Sans', ui-sans-serif, sans-serif;
+
+  --color-brand-50: #fff1f1;
+  --color-brand-100: #ffdfe0;
+  --color-brand-200: #ffc5c7;
+  --color-brand-300: #ff9ca0;
+  --color-brand-400: #fb5f66;
+  --color-brand-500: #f2333b;
+  --color-brand-600: #e30613;
+  --color-brand-700: #bd0a14;
+  --color-brand-800: #9c0d16;
+  --color-brand-900: #810f17;
+  --color-ink: #111111;
+
+  --animate-slide-up: slide-up 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
+  --animate-fade-in: fade-in 0.2s ease-out;
+  --animate-ride: ride 2.4s ease-in-out infinite;
+
+  @keyframes slide-up {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes ride {
+    0%, 100% { transform: translateX(-6px) rotate(-1deg); }
+    50% { transform: translateX(6px) rotate(1deg); }
+  }
+}
+
+@layer base {
+  html { -webkit-tap-highlight-color: transparent; }
+  body {
+    @apply bg-neutral-50 font-sans text-ink antialiased;
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+@utility speed-lines {
+  background-image: repeating-linear-gradient(
+    180deg,
+    transparent 0 10px,
+    rgb(255 255 255 / 0.14) 10px 14px
+  );
+}
