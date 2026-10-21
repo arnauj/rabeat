@@ -21,7 +21,7 @@ export function SafeImg({ src, alt, className = '' }) {
 }
 
 export function Logo({ className = 'h-9' }) {
-  return <img src="/logo.webp" alt="rabeat" className={`w-auto select-none ${className}`} draggable="false" />
+  return <img src="logo.webp" alt="rabeat" className={`w-auto select-none ${className}`} draggable="false" />
 }
 
 // Reloj que se refresca cada minuto para recalcular abiertos/cerrados

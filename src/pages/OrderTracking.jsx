@@ -156,7 +156,7 @@ function ScheduledHero({ order, arrival }) {
       <p className="mt-2 text-sm text-white/70">
         ¡Listo! {order.restaurantName} empezará a prepararlo 30 minutos antes y te avisaremos cuando el rider salga.
       </p>
-      <img src="/rider.png" alt="" className="mx-auto mt-4 w-40 animate-ride" />
+      <img src="rider.png" alt="" className="mx-auto mt-4 w-40 animate-ride" />
     </div>
   )
 }
@@ -211,7 +211,7 @@ function DeliveryMap({ ride, stageIndex }) {
         {stageIndex >= 2 && (
           <g style={{ transform: `translate(${pos.x}px, ${pos.y}px)`, transition: 'transform 0.5s linear' }}>
             <circle r="22" fill="#fff" stroke="#E30613" strokeWidth="3" />
-            <image href="/rider.png" x="-20" y="-20" width="40" height="40" />
+            <image href="rider.png" x="-20" y="-20" width="40" height="40" />
           </g>
         )}
       </svg>
@@ -231,7 +231,7 @@ function RiderCard({ order, delivered, active, onTip, onRate }) {
     <div className="rounded-3xl bg-white p-5 ring-1 ring-neutral-200/70">
       <div className="flex items-center gap-3">
         <span className="grid size-14 place-items-center overflow-hidden rounded-2xl bg-brand-50">
-          <img src="/rider.png" alt="" className="w-12" />
+          <img src="rider.png" alt="" className="w-12" />
         </span>
         <div className="flex-1">
           <p className="font-extrabold">{active ? 'Yeray' : 'Asignando rider…'}</p>

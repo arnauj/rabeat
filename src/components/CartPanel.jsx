@@ -12,7 +12,7 @@ export default function CartPanel({ compact = false }) {
   if (!r || cart.items.length === 0)
     return (
       <div className="rounded-3xl bg-white p-6 text-center ring-1 ring-neutral-200/70">
-        <img src="/rider.png" alt="" className="mx-auto w-28 opacity-90" />
+        <img src="rider.png" alt="" className="mx-auto w-28 opacity-90" />
         <p className="mt-3 font-extrabold">Tu cesta está vacía</p>
         <p className="mt-1 text-sm text-neutral-500">Añade platos y aquí verás tu pedido.</p>
       </div>

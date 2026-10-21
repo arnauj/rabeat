@@ -17,7 +17,7 @@ export default function Orders() {
         <SectionTitle>Mis pedidos</SectionTitle>
         {orders.length === 0 ? (
           <div className="rounded-3xl bg-white p-8 text-center ring-1 ring-neutral-200/70">
-            <img src="/rider.png" alt="" className="mx-auto w-32" />
+            <img src="rider.png" alt="" className="mx-auto w-32" />
             <p className="mt-3 font-extrabold">Todavía no has pedido nada</p>
             <p className="text-sm text-neutral-500">Tu rider está calentando motores.</p>
             <a href="#/" className="mt-4 inline-block rounded-full bg-brand-600 px-5 py-2.5 text-sm font-bold text-white">

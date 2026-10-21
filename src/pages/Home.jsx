@@ -133,7 +133,7 @@ function Hero() {
         </p>
       </div>
       <img
-        src="/rider.png"
+        src="rider.png"
         alt=""
         className="pointer-events-none absolute -right-3 bottom-4 w-40 animate-ride drop-shadow-[0_12px_20px_rgba(0,0,0,0.35)] sm:right-8 sm:bottom-6 sm:w-80"
       />
@@ -145,7 +145,7 @@ function Footer() {
   return (
     <footer className="mt-8 hidden border-t border-neutral-200 bg-white sm:block">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-8 text-sm text-neutral-500">
-        <img src="/logo.webp" alt="rabeat" className="h-8" />
+        <img src="logo.webp" alt="rabeat" className="h-8" />
         <p>Comida a domicilio desde Canarias · © {new Date().getFullYear()} rabeat</p>
       </div>
     </footer>

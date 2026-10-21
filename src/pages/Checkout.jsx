@@ -60,7 +60,7 @@ export default function Checkout() {
     return (
       <div className="grid min-h-dvh place-items-center px-6 text-center">
         <div>
-          <img src="/rider.png" alt="" className="mx-auto w-32" />
+          <img src="rider.png" alt="" className="mx-auto w-32" />
           <p className="mt-4 text-lg font-extrabold">No hay nada que pagar</p>
           <a href="#/" className="mt-3 inline-block font-semibold text-brand-600">
             Buscar restaurantes
@@ -238,7 +238,7 @@ export default function Checkout() {
           {/* Propina */}
           <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-brand-800 p-5 text-white shadow-lg shadow-brand-600/20">
             <div className="pointer-events-none absolute inset-y-0 left-0 w-1/2 speed-lines opacity-50 [mask-image:linear-gradient(90deg,black,transparent)]" />
-            <img src="/rider.png" alt="" className="pointer-events-none absolute top-2 -right-3 w-28 drop-shadow-lg sm:w-36" />
+            <img src="rider.png" alt="" className="pointer-events-none absolute top-2 -right-3 w-28 drop-shadow-lg sm:w-36" />
             <div className="relative pr-24 sm:pr-36">
               <h2 className="font-display text-xl font-extrabold italic">Propina para tu rider</h2>
               <p className="mt-1 text-sm text-white/85">
