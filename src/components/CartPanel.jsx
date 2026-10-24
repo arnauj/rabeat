@@ -27,14 +27,15 @@ export default function CartPanel({ compact = false }) {
       </div>
     )
 
-  const missing = r ? Math.max(0, Number(r.min_order) - cart.subtotal) : 0
-  const blocked = missing > 0 || (r && !r.accepting_orders)
+  const dineIn = cart.dineIn
+  const missing = r && !dineIn ? Math.max(0, Number(r.min_order) - cart.subtotal) : 0
+  const blocked = missing > 0 || (r && !r.accepting_orders) || (dineIn && r && !status.open)
 
   return (
     <div className="overflow-hidden rounded-3xl bg-white ring-1 ring-neutral-200/70">
       <div className="flex items-center justify-between gap-3 border-b border-neutral-100 p-4">
         <div className="min-w-0">
-          <p className="text-[11px] font-bold tracking-wide text-neutral-500 uppercase">Tu pedido en</p>
+          <p className="text-[11px] font-bold tracking-wide text-neutral-500 uppercase">{dineIn ? `🍽️ ${cart.table.name} ·` : 'Tu pedido en'}</p>
           <a href={`#/r/${cart.restaurant.slug}`} className="block truncate font-extrabold hover:text-brand-600">
             {cart.restaurant.name}
           </a>
@@ -60,7 +61,10 @@ export default function CartPanel({ compact = false }) {
 
       <div className="space-y-3 border-t border-neutral-100 p-4">
         {r && !r.accepting_orders && <p className="rounded-2xl bg-neutral-900 p-3 text-xs text-white">El restaurante ha pausado los pedidos temporalmente.</p>}
-        {r && r.accepting_orders && !status.open && (
+        {r && r.accepting_orders && !status.open && dineIn && (
+          <p className="rounded-2xl bg-neutral-900 p-3 text-xs text-white">La cocina está cerrada: no se pueden hacer pedidos desde la mesa ahora.</p>
+        )}
+        {r && r.accepting_orders && !status.open && !dineIn && (
           <p className="flex items-start gap-2 rounded-2xl bg-neutral-900 p-3 text-xs text-white">
             <Icon name="calendar" className="mt-0.5 size-4 shrink-0 text-brand-400" />
             <span>
@@ -90,7 +94,7 @@ export default function CartPanel({ compact = false }) {
             blocked ? 'pointer-events-none bg-neutral-200 text-neutral-400' : 'bg-brand-600 text-white shadow-lg shadow-brand-600/30 hover:bg-brand-700 active:scale-[0.98]'
           }`}
         >
-          {status.open ? 'Ir a pagar' : 'Programar y pagar'}
+          {dineIn ? 'Pedir a la mesa' : status.open ? 'Ir a pagar' : 'Programar y pagar'}
           <Icon name="right" className="size-4" />
         </a>
       </div>

@@ -11,11 +11,13 @@ import { navigate } from '../lib/router.js'
 import { CATEGORIES } from '../data/categories.js'
 import HoursEditor from './HoursEditor.jsx'
 import MenuEditor from './MenuEditor.jsx'
+import TablesEditor from './TablesEditor.jsx'
 
 const TABS = [
   { id: 'datos', label: 'Datos', icon: 'store' },
   { id: 'horario', label: 'Horario', icon: 'clock' },
   { id: 'carta', label: 'Carta', icon: 'menu' },
+  { id: 'mesas', label: 'Mesas', icon: 'qr' },
 ]
 
 export default function RestaurantEditor({ id, tab = 'datos' }) {
@@ -49,20 +51,22 @@ export default function RestaurantEditor({ id, tab = 'datos' }) {
           </a>
         )}
       </div>
-      <div className="mb-5 grid grid-cols-3 gap-1 rounded-2xl bg-white p-1 ring-1 ring-neutral-200">
+      <div className="mb-5 grid grid-cols-4 gap-1 rounded-2xl bg-white p-1 ring-1 ring-neutral-200">
         {TABS.map((t) => (
           <a
             key={t.id}
             href={`#/panel/restaurantes/${id}/${t.id}`}
-            className={`flex items-center justify-center gap-1.5 rounded-xl py-2 text-sm font-bold ${tab === t.id ? 'bg-ink text-white' : 'text-neutral-500'}`}
+            className={`flex items-center justify-center gap-1.5 rounded-xl px-1 py-2 text-[13px] font-bold sm:text-sm ${tab === t.id ? 'bg-ink text-white' : 'text-neutral-500'}`}
           >
-            <Icon name={t.icon} className="size-4" />
+            <Icon name={t.icon} className="hidden size-4 sm:block" />
             {t.label}
           </a>
         ))}
       </div>
       {tab === 'horario' ? (
         <HoursEditor restaurant={r} onSaved={reload} />
+      ) : tab === 'mesas' ? (
+        <TablesEditor restaurant={r} />
       ) : tab === 'carta' ? (
         <MenuEditor restaurant={r} onChange={() => reload(true)} />
       ) : (

@@ -8,10 +8,12 @@ import { notifyOrder } from '../_shared/notify.ts'
 
 type Body = {
   dry_run?: boolean
+  order_type?: 'delivery' | 'dine_in'
+  table_code?: string
   restaurant_id: string
   items: { dish_id: string; qty: number; note?: string }[]
-  address: { street: string; details?: string; notes?: string; lat: number; lng: number }
-  customer?: { name: string; email: string; phone: string }
+  address?: { street: string; details?: string; notes?: string; lat: number; lng: number }
+  customer?: { name?: string; email?: string; phone?: string }
   scheduled_for?: string | null
   tip?: number
   promo_code?: string
@@ -57,13 +59,34 @@ Deno.serve(
     })
     if (unavailable.length) throw new HttpError(409, 'Algún plato de tu cesta ya no está disponible')
 
-    // --- Distancia y envío
-    const point = { lat: Number(body.address?.lat), lng: Number(body.address?.lng) }
-    if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) throw new HttpError(400, 'Indica la dirección de entrega en el mapa')
-    const km = deliveryDistanceKm(restaurant, point)
-    if (km == null) throw new HttpError(409, 'El restaurante aún no tiene ubicación configurada')
-    if (!inDeliveryRange(km, settings))
-      throw new HttpError(409, `Tu dirección está a ${km.toFixed(1)} km: el máximo de reparto es ${settings.delivery_max_km} km`)
+    // --- Pedido en mesa (QR) o a domicilio
+    const dineIn = body.order_type === 'dine_in'
+    let table: { id: string; name: string } | null = null
+    if (dineIn) {
+      const { data } = await db
+        .from('restaurant_tables')
+        .select('id, name, active, restaurant_id')
+        .eq('code', String(body.table_code ?? '').trim().toLowerCase())
+        .maybeSingle()
+      if (!data || !data.active || data.restaurant_id !== restaurant.id) throw new HttpError(404, 'Esta mesa no está disponible. Vuelve a escanear el QR.')
+      table = data
+    }
+
+    // --- Distancia y envío (solo a domicilio)
+    let point = { lat: NaN, lng: NaN }
+    let km: number | null = null
+    if (!dineIn) {
+      point = { lat: Number(body.address?.lat), lng: Number(body.address?.lng) }
+      if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) throw new HttpError(400, 'Indica la dirección de entrega en el mapa')
+      km = deliveryDistanceKm(restaurant, point)
+      if (km == null) throw new HttpError(409, 'El restaurante aún no tiene ubicación configurada')
+      if (!inDeliveryRange(km, settings))
+        throw new HttpError(409, `Tu dirección está a ${km.toFixed(1)} km: el máximo de reparto es ${settings.delivery_max_km} km`)
+    }
+    // En mesa: comisión y recargo propios, sin envío ni propina para repartidor
+    const pricing = dineIn
+      ? { ...settings, restaurant_commission_pct: settings.dine_in_commission_pct, price_markup_pct: settings.dine_in_markup_pct }
+      : settings
 
     // --- Promoción
     let promo = null
@@ -77,16 +100,18 @@ Deno.serve(
     }
 
     const items = lines.map((i) => ({ ...i, base_price: Number(byId.get(i.dish_id)!.price), name: byId.get(i.dish_id)!.name }))
-    const q = quote({ items, settings, km, tip: body.tip ?? 0, promo })
+    const q = quote({ items, settings: pricing, km, tip: dineIn ? 0 : body.tip ?? 0, promo })
     if (promo && q.discount === 0) throw new HttpError(400, `Este código requiere un pedido mínimo de ${promo.min_subtotal} €`)
-    const minOk = q.subtotal >= Number(restaurant.min_order)
+    const minOk = dineIn || q.subtotal >= Number(restaurant.min_order)
 
     // --- Horario
     const now = new Date()
     const hours = restaurant.opening_hours ?? []
     const status = getStatus(hours, now, settings.timezone)
     let scheduledFor: Date | null = null
-    if (body.scheduled_for) {
+    if (dineIn && (body.scheduled_for || !status.open) && !body.dry_run) {
+      throw new HttpError(409, 'El restaurante está cerrado ahora mismo')
+    } else if (body.scheduled_for && !dineIn) {
       scheduledFor = new Date(body.scheduled_for)
       if (!isValidSlot(hours, scheduledFor, now, settings.timezone))
         throw new HttpError(409, 'La franja elegida ya no está disponible, elige otra')
@@ -98,10 +123,15 @@ Deno.serve(
 
     // --- Validación del cliente
     if (!minOk) throw new HttpError(400, `El pedido mínimo es de ${restaurant.min_order} €`)
-    const customer = body.customer
-    if (!customer?.name?.trim() || !EMAIL_RE.test(customer?.email ?? '') || (customer?.phone ?? '').replace(/\D/g, '').length < 9)
-      throw new HttpError(400, 'Revisa tu nombre, email y teléfono')
-    if (!body.address.street?.trim()) throw new HttpError(400, 'Indica la calle y el número')
+    const customer = body.customer ?? {}
+    const email = customer.email?.trim().toLowerCase() || null
+    if (dineIn) {
+      if (email && !EMAIL_RE.test(email)) throw new HttpError(400, 'El email no es válido')
+    } else {
+      if (!customer.name?.trim() || !EMAIL_RE.test(email ?? '') || (customer.phone ?? '').replace(/\D/g, '').length < 9)
+        throw new HttpError(400, 'Revisa tu nombre, email y teléfono')
+      if (!body.address?.street?.trim()) throw new HttpError(400, 'Indica la calle y el número')
+    }
     const method = body.payment_method === 'cash' ? 'cash' : stripeEnabled() ? 'card' : 'test'
 
     // --- Alta del pedido
@@ -109,16 +139,21 @@ Deno.serve(
       .from('orders')
       .insert({
         code: orderCode(),
+        order_type: dineIn ? 'dine_in' : 'delivery',
+        table_id: table?.id ?? null,
+        table_name: table?.name ?? null,
         restaurant_id: restaurant.id,
         customer_id: user?.id ?? null,
-        customer_name: customer.name.trim(),
-        customer_email: customer.email.trim().toLowerCase(),
-        customer_phone: customer.phone.trim(),
-        address: { street: body.address.street.trim(), details: body.address.details?.trim() ?? '', notes: body.address.notes?.trim() ?? '' },
-        lat: point.lat,
-        lng: point.lng,
+        customer_name: customer.name?.trim() || table?.name || '',
+        customer_email: email,
+        customer_phone: customer.phone?.trim() || null,
+        address: dineIn
+          ? null
+          : { street: body.address!.street.trim(), details: body.address!.details?.trim() ?? '', notes: body.address!.notes?.trim() ?? '' },
+        lat: dineIn ? null : point.lat,
+        lng: dineIn ? null : point.lng,
         distance_km: km,
-        scheduled_for: scheduledFor?.toISOString() ?? null,
+        scheduled_for: dineIn ? null : scheduledFor?.toISOString() ?? null,
         status: method === 'cash' ? 'confirmed' : 'pending_payment',
         payment_method: method,
         promo_code: promo?.code ?? null,
@@ -164,7 +199,7 @@ Deno.serve(
       }
     }
     items.forEach((i) => add(i.name, customerPrice(i.base_price, q.markup_pct), i.qty))
-    if (q.delivery_fee > 0) add(`Envío (${km.toFixed(1)} km)`, q.delivery_fee)
+    if (q.delivery_fee > 0 && km != null) add(`Envío (${km.toFixed(1)} km)`, q.delivery_fee)
     if (q.tip > 0) add('Propina para tu repartidor', q.tip)
 
     let discounts
@@ -182,7 +217,7 @@ Deno.serve(
     const session = await stripe<{ id: string; url: string }>('checkout/sessions', {
       mode: 'payment',
       locale: 'es',
-      customer_email: order.customer_email,
+      customer_email: order.customer_email ?? undefined,
       client_reference_id: order.id,
       metadata: { type: 'order', order_id: order.id },
       payment_intent_data: { metadata: { order_id: order.id, code: order.code } },

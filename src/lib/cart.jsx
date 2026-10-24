@@ -5,7 +5,8 @@ import { customerPrice } from './pricing.js'
 const STORAGE_KEY = 'rabeat:cart:v2'
 
 // restaurant: { id, slug, name }  ·  items: precios base del restaurante (el recargo se aplica al mostrar)
-const initial = { restaurant: null, items: [], orders: [] }
+// table: mesa del QR escaneado { code, name, restaurantId, restaurantSlug, restaurantName }
+const initial = { restaurant: null, items: [], orders: [], table: null }
 
 function load() {
   try {
@@ -48,6 +49,11 @@ function reducer(state, action) {
       return { ...state, items: [], restaurant: null }
     case 'restore':
       return { ...state, items: action.items, restaurant: action.restaurant }
+    case 'setTable': {
+      // Al entrar por el QR de otro restaurante, la cesta anterior no vale
+      const keep = !action.table || state.restaurant?.id === action.table.restaurantId
+      return { ...state, table: action.table, ...(keep ? {} : { items: [], restaurant: null }) }
+    }
     case 'rememberOrder':
       return {
         ...state,
@@ -73,15 +79,21 @@ export function CartProvider({ children }) {
   }, [state])
 
   const value = useMemo(() => {
-    const markup = settings.price_markup_pct
+    // En mesa se aplica el recargo propio de los pedidos en el local
+    const isDineIn = (restaurantId) => Boolean(state.table && state.table.restaurantId === restaurantId)
+    const markupFor = (restaurantId) => (isDineIn(restaurantId) ? settings.dine_in_markup_pct ?? 0 : settings.price_markup_pct)
+    const cartMarkup = markupFor(state.restaurant?.id)
     const count = state.items.reduce((n, i) => n + i.qty, 0)
-    const subtotal = state.items.reduce((n, i) => n + customerPrice(i.basePrice, markup) * i.qty, 0)
+    const subtotal = state.items.reduce((n, i) => n + customerPrice(i.basePrice, cartMarkup) * i.qty, 0)
     return {
       ...state,
       restaurantId: state.restaurant?.id ?? null,
       count,
       subtotal,
-      priceOf: (basePrice) => customerPrice(basePrice, markup),
+      isDineIn,
+      dineIn: isDineIn(state.restaurant?.id),
+      priceOf: (basePrice, restaurantId = state.restaurant?.id) => customerPrice(basePrice, markupFor(restaurantId)),
+      setTable: (table) => dispatch({ type: 'setTable', table }),
       add: (restaurant, dish, qty = 1, note = '') => dispatch({ type: 'add', restaurant, dish, qty, note: note.trim() }),
       setQty: (key, qty) => dispatch({ type: 'setQty', key, qty }),
       sync: (dishes) => dispatch({ type: 'sync', dishes }),
@@ -89,7 +101,7 @@ export function CartProvider({ children }) {
       restore: ({ items, restaurant }) => dispatch({ type: 'restore', items, restaurant }),
       rememberOrder: (order) => dispatch({ type: 'rememberOrder', order }),
     }
-  }, [state, settings.price_markup_pct])
+  }, [state, settings.price_markup_pct, settings.dine_in_markup_pct])
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>
 }

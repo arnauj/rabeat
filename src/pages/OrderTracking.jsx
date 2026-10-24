@@ -10,6 +10,13 @@ import { useCart } from '../lib/cart.jsx'
 import { money, PAYMENT_METHOD } from '../lib/format.js'
 import { formatHour, slotLabel } from '../lib/time.js'
 
+const DINE_IN_STAGES = [
+  { id: 'confirmed', label: 'Pedido recibido', hint: 'La cocina ya tiene tu pedido' },
+  { id: 'preparing', label: 'En la cocina', hint: 'Están preparando tu comida' },
+  { id: 'ready', label: 'Listo', hint: 'Te lo llevan a la mesa enseguida' },
+  { id: 'delivered', label: 'Servido', hint: '¡Que aproveche!' },
+]
+
 const STAGES = [
   { id: 'confirmed', label: 'Pedido confirmado', hint: 'El restaurante ha recibido tu pedido' },
   { id: 'preparing', label: 'En la cocina', hint: 'Están preparando tu comida' },
@@ -78,7 +85,9 @@ export default function OrderTracking({ token, query }) {
       </div>
     )
 
-  const stageIndex = STAGES.findIndex((s) => s.id === o.status)
+  const dineIn = o.order_type === 'dine_in'
+  const stages = dineIn ? DINE_IN_STAGES : STAGES
+  const stageIndex = stages.findIndex((s) => s.id === o.status)
   const delivered = o.status === 'delivered'
   const cancelled = o.status === 'cancelled'
   const pendingPayment = o.status === 'pending_payment'
@@ -93,7 +102,10 @@ export default function OrderTracking({ token, query }) {
             <Icon name="back" />
           </a>
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-white/60">Pedido {o.code}</p>
+            <p className="text-xs text-white/60">
+              Pedido {o.code}
+              {dineIn && ` · 🍽️ ${o.table_name}`}
+            </p>
             <p className="truncate font-extrabold">{o.restaurant.name}</p>
           </div>
           <button onClick={() => reload()} className="grid size-10 place-items-center rounded-full bg-white/10" aria-label="Actualizar">
@@ -115,6 +127,17 @@ export default function OrderTracking({ token, query }) {
                 {o.payment_status === 'paid' && o.payment_method === 'card' ? 'Te devolveremos el importe en tu tarjeta.' : 'No se ha realizado ningún cargo.'}
               </p>
             </div>
+          ) : dineIn ? (
+            <div className="mt-4 rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-3 py-1 text-xs font-bold">🍽️ {o.table_name}</span>
+              <p className="mt-3 font-display text-4xl font-black tracking-tight italic">
+                {delivered ? '¡Servido!' : o.status === 'ready' ? '¡Ya va!' : 'En marcha'}
+              </p>
+              <p className="mt-2 text-sm text-white/70">
+                {delivered ? '¡Que aproveche!' : `Te lo llevan a la mesa. Tiempo de cocina: ${o.restaurant.prep_min}–${o.restaurant.prep_max} min.`}
+                {o.payment_method === 'cash' && o.payment_status !== 'paid' && ` Pagarás ${money(o.total)} en el local.`}
+              </p>
+            </div>
           ) : scheduledWaiting ? (
             <div className="mt-4 rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-3 py-1 text-xs font-bold">
@@ -131,7 +154,7 @@ export default function OrderTracking({ token, query }) {
               </p>
             </>
           )}
-          {!pendingPayment && !cancelled && (
+          {!pendingPayment && !cancelled && !dineIn && (
             <div className="mt-4 overflow-hidden rounded-3xl ring-1 ring-white/10">
               <MapView markers={markers} className="h-64 sm:h-80" />
             </div>
@@ -142,8 +165,8 @@ export default function OrderTracking({ token, query }) {
       <div className="relative mx-auto -mt-16 max-w-3xl space-y-4 px-4">
         {!pendingPayment && !cancelled && (
           <div className="rounded-3xl bg-white p-5 shadow-xl shadow-neutral-900/5 ring-1 ring-neutral-200/70">
-            <div className="mb-5 grid grid-cols-5 gap-1.5">
-              {STAGES.map((s, i) => (
+            <div className={`mb-5 grid gap-1.5 ${dineIn ? 'grid-cols-4' : 'grid-cols-5'}`}>
+              {stages.map((s, i) => (
                 <div key={s.id} className="h-1.5 overflow-hidden rounded-full bg-neutral-100">
                   <div
                     className={`h-full rounded-full bg-brand-600 transition-all duration-700 ${i === stageIndex && !delivered ? 'animate-pulse' : ''}`}
@@ -153,7 +176,7 @@ export default function OrderTracking({ token, query }) {
               ))}
             </div>
             <ol className="space-y-3">
-              {STAGES.map((s, i) => {
+              {stages.map((s, i) => {
                 const done = i < stageIndex || delivered
                 const current = i === stageIndex
                 return (
@@ -176,7 +199,13 @@ export default function OrderTracking({ token, query }) {
           </div>
         )}
 
-        {!pendingPayment && !cancelled && <RiderCard order={o} delivered={delivered} onChange={() => reload(true)} />}
+        {!pendingPayment && !cancelled && !dineIn && <RiderCard order={o} delivered={delivered} onChange={() => reload(true)} />}
+        {dineIn && delivered && <RateCard order={o} onChange={() => reload(true)} />}
+        {dineIn && (
+          <a href={`#/r/${o.restaurant.slug}`} className="block rounded-2xl bg-brand-600 py-4 text-center font-bold text-white">
+            Pedir algo más
+          </a>
+        )}
 
         <div className="rounded-3xl bg-white p-5 ring-1 ring-neutral-200/70">
           <h3 className="font-extrabold">Resumen</h3>
@@ -193,20 +222,26 @@ export default function OrderTracking({ token, query }) {
           </ul>
           <dl className="mt-4 space-y-1.5 border-t border-dashed border-neutral-200 pt-4 text-sm">
             <Line label="Subtotal" value={money(o.subtotal)} />
-            <Line label={`Envío · ${Number(o.distance_km).toFixed(1).replace('.', ',')} km`} value={money(o.delivery_fee)} />
-            <Line label="Propina rider" value={money(o.tip)} />
+            {!dineIn && (
+              <>
+                <Line label={`Envío · ${Number(o.distance_km).toFixed(1).replace('.', ',')} km`} value={money(o.delivery_fee)} />
+                <Line label="Propina rider" value={money(o.tip)} />
+              </>
+            )}
             {Number(o.discount) > 0 && <Line label={`Descuento (${o.promo_code})`} value={`−${money(o.discount)}`} />}
             <div className="flex justify-between pt-2 text-base font-extrabold">
-              <dt>Total · {PAYMENT_METHOD[o.payment_method]}</dt>
+              <dt>Total · {dineIn && o.payment_method === 'cash' ? 'En el local' : PAYMENT_METHOD[o.payment_method]}</dt>
               <dd className="tabular-nums">{money(o.total)}</dd>
             </div>
           </dl>
-          <p className="mt-4 flex items-start gap-2 rounded-2xl bg-neutral-100 p-3 text-xs text-neutral-600">
-            <Icon name="pin" className="size-4 shrink-0 text-brand-600" />
-            {o.address.street}
-            {o.address.details && `, ${o.address.details}`}
-            {o.address.notes && ` · ${o.address.notes}`}
-          </p>
+          {o.address && (
+            <p className="mt-4 flex items-start gap-2 rounded-2xl bg-neutral-100 p-3 text-xs text-neutral-600">
+              <Icon name="pin" className="size-4 shrink-0 text-brand-600" />
+              {o.address.street}
+              {o.address.details && `, ${o.address.details}`}
+              {o.address.notes && ` · ${o.address.notes}`}
+            </p>
+          )}
           {o.restaurant.phone && (
             <a href={`tel:${o.restaurant.phone.replace(/\s/g, '')}`} className="mt-3 flex items-center gap-2 text-sm font-bold text-brand-600">
               <Icon name="phone" className="size-4" /> Llamar al restaurante
@@ -305,6 +340,28 @@ function RiderCard({ order, delivered, onChange }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function RateCard({ order, onChange }) {
+  const toast = useToast()
+  const rate = async (n) => {
+    const { error } = await supabase.rpc('rate_order', { p_token: order.token, p_rating: n })
+    if (error) return toast(error.message, 'error')
+    toast('¡Gracias por tu valoración!')
+    onChange()
+  }
+  return (
+    <div className="rounded-3xl bg-white p-5 text-center ring-1 ring-neutral-200/70">
+      <p className="text-sm font-bold">{order.rating ? 'Tu valoración' : '¿Qué tal la comida?'}</p>
+      <div className="mt-2 flex justify-center gap-1">
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button key={n} onClick={() => rate(n)} aria-label={`${n} estrellas`} className="transition active:scale-90">
+            <Icon name="star" className={`size-8 ${n <= (order.rating ?? 0) ? 'text-amber-400' : 'text-neutral-200'}`} />
+          </button>
+        ))}
+      </div>
     </div>
   )
 }

@@ -13,6 +13,7 @@ import Orders from './pages/Orders.jsx'
 import OrderTracking from './pages/OrderTracking.jsx'
 import { Login, Register } from './pages/Auth.jsx'
 import Account from './pages/Account.jsx'
+import TableEntry from './pages/TableEntry.jsx'
 import { money } from './lib/format.js'
 
 // Paneles en carga diferida: el cliente no descarga el código de gestión
@@ -49,6 +50,9 @@ export default function App() {
     case 'cuenta':
       content = <Account />
       break
+    case 'mesa':
+      content = <TableEntry code={param} />
+      break
     case 'panel':
       content = <Panel parts={parts.slice(1)} />
       break
@@ -59,7 +63,7 @@ export default function App() {
       content = <Home />
   }
 
-  const showNav = !['pago', 'pedido', 'panel', 'reparto', 'entrar', 'registro'].includes(page)
+  const showNav = !['pago', 'pedido', 'panel', 'reparto', 'entrar', 'registro', 'mesa'].includes(page)
 
   return (
     <div className={`min-h-dvh ${showNav ? 'pb-[calc(env(safe-area-inset-bottom)+5rem)] sm:pb-0' : ''}`}>

@@ -9,6 +9,8 @@ const FALLBACK = {
   delivery_fee_per_km: 0.6,
   delivery_max_km: 10,
   max_tip: 50,
+  dine_in_commission_pct: 5,
+  dine_in_markup_pct: 0,
   timezone: DEFAULT_TZ,
 }
 

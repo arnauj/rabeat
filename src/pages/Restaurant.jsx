@@ -66,8 +66,9 @@ export default function Restaurant({ slug }) {
       </>
     )
 
-  const km = address ? deliveryDistanceKm(r, address) : null
-  const inRange = !address || inDeliveryRange(km, settings)
+  const dineIn = cart.isDineIn(r.id)
+  const km = address && !dineIn ? deliveryDistanceKm(r, address) : null
+  const inRange = dineIn || !address || inDeliveryRange(km, settings)
   const [etaA, etaB] = etaMinutes(r, km)
   const tz = settings.timezone
   const qtyInCart = (dishId) => (cart.restaurantId === r.id ? cart.items.filter((i) => i.dishId === dishId).reduce((n, i) => n + i.qty, 0) : 0)
@@ -111,12 +112,40 @@ export default function Restaurant({ slug }) {
               <Icon name="star" className="size-4 text-amber-400" />
               {rating(r)}
             </Stat>
-            <Stat label="minutos">
-              {etaA}–{etaB}
-            </Stat>
-            <Stat label={km == null ? 'envío desde' : `envío · ${fmtKm(km)}`}>{money(km == null ? settings.delivery_base_fee : deliveryFee(km, settings))}</Stat>
-            <Stat label="pedido mín.">{money(r.min_order)}</Stat>
+            {dineIn ? (
+              <>
+                <Stat label="min en cocina">
+                  {r.prep_min}–{r.prep_max}
+                </Stat>
+                <Stat label="envío">Gratis</Stat>
+                <Stat label="pides desde">{cart.table.name}</Stat>
+              </>
+            ) : (
+              <>
+                <Stat label="minutos">
+                  {etaA}–{etaB}
+                </Stat>
+                <Stat label={km == null ? 'envío desde' : `envío · ${fmtKm(km)}`}>{money(km == null ? settings.delivery_base_fee : deliveryFee(km, settings))}</Stat>
+                <Stat label="pedido mín.">{money(r.min_order)}</Stat>
+              </>
+            )}
           </div>
+
+          {dineIn && (
+            <div className="mt-4 flex items-center gap-3 rounded-3xl bg-brand-600 p-4 text-white shadow-lg shadow-brand-600/25">
+              <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-white/20 text-2xl">🍽️</span>
+              <div className="min-w-0 flex-1">
+                <p className="font-extrabold">Estás en la {cart.table.name}</p>
+                <p className="text-sm text-white/85">Pide desde el móvil y te lo llevan a la mesa. Sin gastos de envío.</p>
+              </div>
+              <button
+                onClick={() => cart.setTable(null)}
+                className="shrink-0 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold ring-1 ring-white/30"
+              >
+                Pedir a domicilio
+              </button>
+            </div>
+          )}
 
           {r.description && <p className="mt-4 text-sm leading-relaxed text-neutral-600">{r.description}</p>}
 
@@ -132,6 +161,8 @@ export default function Restaurant({ slug }) {
 
           {!r.accepting_orders ? (
             <Banner title="Pedidos en pausa" text="El restaurante ha pausado los pedidos temporalmente. Vuelve a intentarlo más tarde." />
+          ) : dineIn ? (
+            !status.open && <Banner title="La cocina está cerrada" text="Ahora mismo no se pueden hacer pedidos desde la mesa." />
           ) : (
             !status.open && (
               <Banner
@@ -190,10 +221,10 @@ export default function Restaurant({ slug }) {
                   <DishCard
                     key={d.id}
                     dish={d}
-                    price={cart.priceOf(d.price)}
+                    price={cart.priceOf(d.price, r.id)}
                     inCart={qtyInCart(d.id)}
                     onOpen={() => setSelected(d)}
-                    onQuickAdd={r.accepting_orders ? () => handleAdd(d, 1, '') : null}
+                    onQuickAdd={r.accepting_orders && (!dineIn || status.open) ? () => handleAdd(d, 1, '') : null}
                   />
                 ))}
               </div>
@@ -246,7 +277,7 @@ export default function Restaurant({ slug }) {
         >
           <span className="flex items-center gap-3">
             <span className="grid size-7 place-items-center rounded-full bg-white text-sm text-brand-600">{cart.count}</span>
-            {status.open ? 'Ver pedido' : 'Programar pedido'}
+            {dineIn ? `Ver pedido · ${cart.table.name}` : status.open ? 'Ver pedido' : 'Programar pedido'}
           </span>
           <span>{money(cart.subtotal)}</span>
         </a>
@@ -255,9 +286,9 @@ export default function Restaurant({ slug }) {
       <DishSheet
         dish={selected}
         restaurant={r}
-        price={selected ? cart.priceOf(selected.price) : 0}
-        closed={!status.open}
-        canOrder={r.accepting_orders}
+        price={selected ? cart.priceOf(selected.price, r.id) : 0}
+        closed={!status.open && !dineIn}
+        canOrder={r.accepting_orders && (!dineIn || status.open)}
         onClose={() => setSelected(null)}
         onAdd={(qty, note) => {
           handleAdd(selected, qty, note)

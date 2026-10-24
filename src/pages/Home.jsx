@@ -10,6 +10,7 @@ import { getStatus } from '../lib/time.js'
 import { useSettings } from '../lib/settings.jsx'
 import { useLocation } from '../lib/location.jsx'
 import { deliveryDistanceKm, inDeliveryRange } from '../lib/pricing.js'
+import { useCart } from '../lib/cart.jsx'
 
 const normalize = (s) => s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase()
 
@@ -17,6 +18,7 @@ export default function Home() {
   const now = useNow()
   const { settings } = useSettings()
   const { address, openPicker } = useLocation()
+  const { table, setTable } = useCart()
   const { data: restaurants, error, loading, reload } = useAsync(listRestaurants, [])
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
@@ -46,6 +48,18 @@ export default function Home() {
     <>
       <TopBar />
       <main className="mx-auto max-w-6xl px-4 sm:px-6">
+        {table && (
+          <div className="mt-4 flex items-center gap-3 rounded-3xl bg-brand-600 p-4 text-white">
+            <span className="text-2xl">🍽️</span>
+            <a href={`#/r/${table.restaurantSlug}`} className="min-w-0 flex-1">
+              <span className="block font-extrabold">Estás en {table.restaurantName} · {table.name}</span>
+              <span className="block text-sm text-white/85">Volver a la carta de tu mesa</span>
+            </a>
+            <button onClick={() => setTable(null)} className="shrink-0 rounded-full bg-white/15 px-3 py-1.5 text-xs font-bold ring-1 ring-white/30">
+              Salir
+            </button>
+          </div>
+        )}
         <Hero />
 
         {!address && (

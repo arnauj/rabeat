@@ -17,6 +17,11 @@ const TIP_OPTIONS = [0, 1, 2, 3, 5]
 const PENDING_KEY = 'rabeat:pendingCheckout'
 
 export default function Checkout({ query }) {
+  const { dineIn } = useCart()
+  return dineIn ? <DineInCheckout /> : <DeliveryCheckout query={query} />
+}
+
+function DeliveryCheckout({ query }) {
   const cart = useCart()
   const now = useNow()
   const toast = useToast()
@@ -499,6 +504,173 @@ function Row({ label, value, accent, green }) {
     <div className="flex justify-between">
       <dt className="text-neutral-500">{label}</dt>
       <dd className={`font-semibold tabular-nums ${accent ? 'text-brand-600' : ''} ${green ? 'text-emerald-700' : ''}`}>{value}</dd>
+    </div>
+  )
+}
+
+// Pedido desde la mesa (QR): sin dirección, envío ni propina para repartidor
+function DineInCheckout() {
+  const cart = useCart()
+  const now = useNow()
+  const { profile } = useAuth()
+  const { settings, config } = useSettings()
+  const { data: r, loading } = useAsync(() => (cart.restaurantId ? getRestaurant(cart.restaurantId, { byId: true }) : null), [cart.restaurantId])
+  const status = useRestaurantStatus(r, now)
+  const [customer, setCustomer] = useState({ name: '', email: '' })
+  const [payment, setPayment] = useState('cash')
+  const [paying, setPaying] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (profile) setCustomer((c) => ({ name: c.name || profile.full_name, email: c.email || profile.email }))
+  }, [profile])
+
+  if (loading && !r) return <Loading />
+  if (!r || !cart.items.length)
+    return (
+      <div className="grid min-h-dvh place-items-center px-6 text-center">
+        <div>
+          <p className="text-5xl">🍽️</p>
+          <p className="mt-3 text-lg font-extrabold">Tu pedido está vacío</p>
+          <a href={`#/r/${cart.table?.restaurantSlug ?? ''}`} className="mt-3 inline-block font-semibold text-brand-600">
+            Ver la carta
+          </a>
+        </div>
+      </div>
+    )
+
+  const q = quote({
+    items: cart.items.map((i) => ({ base_price: i.basePrice, qty: i.qty })),
+    settings: { ...settings, price_markup_pct: settings.dine_in_markup_pct, restaurant_commission_pct: settings.dine_in_commission_pct },
+    km: null,
+    tip: 0,
+  })
+  const testMode = config?.payments !== 'stripe'
+  const emailOk = !customer.email || /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(customer.email)
+  const blocked = !status.open || !r.accepting_orders
+
+  const send = async () => {
+    if (!emailOk) return setError('El email no es válido')
+    setPaying(true)
+    setError('')
+    try {
+      const res = await callFunction('create-order', {
+        order_type: 'dine_in',
+        table_code: cart.table.code,
+        restaurant_id: r.id,
+        items: cart.items.map((i) => ({ dish_id: i.dishId, qty: i.qty, note: i.note })),
+        customer,
+        payment_method: payment,
+      })
+      cart.rememberOrder({ token: res.token, code: res.code, restaurant: r.name, created_at: new Date().toISOString() })
+      if (res.checkout_url) {
+        sessionStorage.setItem(PENDING_KEY, JSON.stringify({ code: res.code, cart: { items: cart.items, restaurant: cart.restaurant } }))
+        cart.clear()
+        window.location.href = res.checkout_url
+        return
+      }
+      cart.clear()
+      navigate(`/pedido/${res.token}`)
+    } catch (e) {
+      setError(e.message)
+      setPaying(false)
+    }
+  }
+
+  return (
+    <div className="min-h-dvh bg-neutral-50 pb-32">
+      <header className="sticky top-0 z-30 border-b border-neutral-200/70 bg-white/85 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-xl items-center gap-3 px-4 py-3">
+          <button onClick={() => goBack(`/r/${r.slug}`)} className="grid size-10 place-items-center rounded-full bg-neutral-100" aria-label="Volver">
+            <Icon name="back" />
+          </button>
+          <div>
+            <h1 className="text-lg leading-tight font-extrabold">Pedido en {cart.table.name}</h1>
+            <p className="text-xs text-neutral-500">{r.name}</p>
+          </div>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-xl space-y-4 px-4 py-5">
+        <div className="flex items-center gap-3 rounded-3xl bg-brand-600 p-4 text-white">
+          <span className="text-3xl">🍽️</span>
+          <p className="text-sm">
+            Te lo llevamos a la <b>{cart.table.name}</b> en cuanto esté listo ({r.prep_min}–{r.prep_max} min). Sin gastos de envío.
+          </p>
+        </div>
+
+        <section className="rounded-3xl bg-white p-5 ring-1 ring-neutral-200/70">
+          <ul className="space-y-2 text-sm">
+            {cart.items.map((i) => (
+              <li key={i.key} className="flex justify-between gap-3">
+                <span className="text-neutral-600">
+                  <b className="text-ink">{i.qty}×</b> {i.name}
+                  {i.note && <span className="block text-xs text-neutral-400">“{i.note}”</span>}
+                </span>
+                <span className="font-semibold tabular-nums">{money(i.qty * cart.priceOf(i.basePrice))}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-4 flex justify-between border-t border-dashed border-neutral-200 pt-4 text-lg font-extrabold">
+            <span>Total</span>
+            <span className="tabular-nums">{money(q.total)}</span>
+          </div>
+        </section>
+
+        <section className="rounded-3xl bg-white p-5 ring-1 ring-neutral-200/70">
+          <h2 className="mb-3 font-extrabold">Tus datos (opcional)</h2>
+          <div className="grid gap-3">
+            <Field label="Nombre para avisarte" autoComplete="name" value={customer.name} onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
+            <Field
+              label="Email para el recibo"
+              type="email"
+              autoComplete="email"
+              value={customer.email}
+              error={!emailOk ? 'Email no válido' : ''}
+              onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
+            />
+          </div>
+        </section>
+
+        <section className="rounded-3xl bg-white p-5 ring-1 ring-neutral-200/70">
+          <h2 className="mb-3 font-extrabold">¿Cómo pagas?</h2>
+          <div className="grid grid-cols-2 gap-2">
+            <PayOption active={payment === 'cash'} onClick={() => setPayment('cash')} icon="cash" title="En el local" subtitle="Efectivo o tarjeta al camarero" />
+            <PayOption active={payment === 'card'} onClick={() => setPayment('card')} icon="card" title="Ahora" subtitle="Tarjeta · Apple/Google Pay" />
+          </div>
+          {payment === 'card' && testMode && (
+            <p className="mt-3 rounded-2xl bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
+              🧪 <b>Pasarela en modo pruebas:</b> el pago se simula sin cargo.
+            </p>
+          )}
+        </section>
+      </main>
+
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-neutral-200 bg-white/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
+        <div className="mx-auto max-w-xl">
+          {(error || blocked) && (
+            <p className="mb-2 text-center text-xs font-semibold text-brand-600">
+              {error || (!r.accepting_orders ? 'El restaurante ha pausado los pedidos' : 'La cocina está cerrada ahora mismo')}
+            </p>
+          )}
+          <button
+            onClick={send}
+            disabled={paying || blocked}
+            className="flex w-full items-center justify-between rounded-2xl bg-brand-600 px-5 py-4 text-base font-extrabold text-white shadow-xl shadow-brand-600/30 transition active:scale-[0.98] disabled:opacity-60"
+          >
+            {paying ? (
+              <span className="flex w-full items-center justify-center gap-2">
+                <span className="size-5 animate-spin rounded-full border-2 border-white/40 border-t-white" /> Enviando…
+              </span>
+            ) : (
+              <>
+                <span>{payment === 'card' ? 'Pagar y enviar a cocina' : 'Enviar a cocina'}</span>
+                <span className="tabular-nums">{money(q.total)}</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

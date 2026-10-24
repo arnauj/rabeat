@@ -13,6 +13,8 @@ const FIELDS = [
   'delivery_fee_per_km',
   'delivery_max_km',
   'max_tip',
+  'dine_in_commission_pct',
+  'dine_in_markup_pct',
 ]
 
 export default function SettingsPage() {
@@ -65,6 +67,25 @@ export default function SettingsPage() {
                 hint="Se suma al precio de carta que ve y paga el cliente"
               />
             </div>
+          </Card>
+          <Card title="Pedidos desde la mesa (QR)" icon="qr">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field
+                label="Comisión al restaurante en mesa (%)"
+                inputMode="decimal"
+                value={form.dine_in_commission_pct}
+                onChange={set('dine_in_commission_pct')}
+                hint="Lo que cobra rabeat al restaurante por cada pedido hecho desde una mesa"
+              />
+              <Field
+                label="Recargo en el precio en mesa (%)"
+                inputMode="decimal"
+                value={form.dine_in_markup_pct}
+                onChange={set('dine_in_markup_pct')}
+                hint="Normalmente 0: el cliente paga el precio de carta del local"
+              />
+            </div>
+            <p className="mt-2 text-xs text-neutral-500">Los pedidos en mesa no tienen gastos de envío ni propina para repartidor.</p>
           </Card>
           <Card title="Gastos de envío por distancia" icon="bike">
             <div className="grid gap-3 sm:grid-cols-3">

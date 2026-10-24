@@ -47,9 +47,17 @@ export default function Sales() {
       ) : (
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <StatTile label="Pedidos" value={data.orders} hint={data.cancelled ? `${data.cancelled} cancelados` : 'sin cancelaciones'} />
+            <StatTile
+              label="Pedidos"
+              value={data.orders}
+              hint={`🛵 ${data.delivery_orders ?? data.orders} · 🍽️ ${data.dine_in_orders ?? 0} en mesa${data.cancelled ? ` · ${data.cancelled} cancel.` : ''}`}
+            />
             <StatTile label="Ventas" value={money(data.gross)} />
-            <StatTile label="Comisión rabeat" value={`−${money(data.commission)}`} hint={`${settings.restaurant_commission_pct}% por pedido`} />
+            <StatTile
+              label="Comisión rabeat"
+              value={`−${money(data.commission)}`}
+              hint={`${settings.restaurant_commission_pct}% domicilio · ${settings.dine_in_commission_pct}% mesa`}
+            />
             <StatTile label="Neto a cobrar" value={money(data.payout)} accent />
             <StatTile label="Ticket medio" value={money(data.avg_ticket)} />
           </div>

@@ -39,6 +39,7 @@ export default function OrdersBoard() {
   const isSuper = profile.role === 'superuser'
   const [filter, setFilter] = useState('active')
   const [restaurantId, setRestaurantId] = useState('')
+  const [type, setType] = useState('')
   const { data: restaurants } = useAsync(() => myRestaurants(profile), [profile.id])
   const known = useRef(null)
 
@@ -46,10 +47,11 @@ export default function OrdersBoard() {
     let q = supabase.from('orders').select(ORDER_SELECT).neq('status', 'pending_payment').order('created_at', { ascending: false }).limit(100)
     const f = FILTERS.find((x) => x.id === filter)
     if (f.statuses) q = q.in('status', f.statuses)
+    if (type) q = q.eq('order_type', type)
     if (restaurantId) q = q.eq('restaurant_id', restaurantId)
     else if (!isSuper && restaurants) q = q.in('restaurant_id', restaurants.map((r) => r.id))
     return unwrap(await q)
-  }, [filter, restaurantId, restaurants, isSuper])
+  }, [filter, type, restaurantId, restaurants, isSuper])
 
   // Pitido al detectar pedidos nuevos
   useEffect(() => {
@@ -84,6 +86,17 @@ export default function OrdersBoard() {
               className={`shrink-0 rounded-xl px-3 py-1.5 text-sm font-bold ${filter === f.id ? 'bg-ink text-white' : 'text-neutral-500'}`}
             >
               {f.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-1 rounded-2xl bg-white p-1 ring-1 ring-neutral-200">
+          {[
+            ['', 'Todos'],
+            ['delivery', '🛵 Domicilio'],
+            ['dine_in', '🍽️ Mesa'],
+          ].map(([id, label]) => (
+            <button key={id} onClick={() => setType(id)} className={`shrink-0 rounded-xl px-3 py-1.5 text-sm font-bold ${type === id ? 'bg-ink text-white' : 'text-neutral-500'}`}>
+              {label}
             </button>
           ))}
         </div>
@@ -139,12 +152,20 @@ function OrderCard({ order: o, isSuper, tz, onChange }) {
     }
   }
 
-  const next = { confirmed: ['preparing', 'Empezar a preparar'], preparing: ['ready', 'Listo para recoger'] }[o.status]
+  const dineIn = o.order_type === 'dine_in'
+  const next = {
+    confirmed: ['preparing', 'Empezar a preparar'],
+    preparing: ['ready', dineIn ? 'Listo para servir' : 'Listo para recoger'],
+    ...(dineIn ? { ready: ['delivered', 'Servido en mesa'] } : {}),
+  }[o.status]
 
   return (
     <article className={`rounded-3xl bg-white p-4 ring-1 ${o.status === 'confirmed' ? 'ring-2 ring-brand-500' : 'ring-neutral-200/70'}`}>
       <header className="flex items-start justify-between gap-3">
         <div>
+          {dineIn && (
+            <p className="mb-1 inline-flex items-center gap-1 rounded-full bg-ink px-2.5 py-1 text-sm font-extrabold text-white">🍽️ {o.table_name}</p>
+          )}
           <p className="flex items-center gap-2 text-lg font-extrabold">
             {o.code}
             <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${st.cls}`}>{st.label}</span>
@@ -174,6 +195,15 @@ function OrderCard({ order: o, isSuper, tz, onChange }) {
         ))}
       </ul>
 
+      {dineIn ? (
+        <div className="mt-3 rounded-2xl bg-neutral-50 p-3 text-xs text-neutral-600">
+          <p>
+            <b className="text-ink">Pedido en sala</b>
+            {o.customer_name && o.customer_name !== o.table_name && ` · ${o.customer_name}`} ·{' '}
+            {o.payment_method === 'cash' ? (o.payment_status === 'paid' ? 'Cobrado en el local' : `Cobrar en el local ${money(o.total)}`) : `${PAYMENT_METHOD[o.payment_method]} · pagado`}
+          </p>
+        </div>
+      ) : (
       <div className="mt-3 rounded-2xl bg-neutral-50 p-3 text-xs text-neutral-600">
         <p className="font-bold text-ink">{o.customer_name}</p>
         <p>
@@ -189,6 +219,7 @@ function OrderCard({ order: o, isSuper, tz, onChange }) {
         {o.address.notes && <p className="italic">“{o.address.notes}”</p>}
         <p className="mt-1">{o.rider_id ? '🛵 Rider asignado' : '⏳ Sin rider todavía'}</p>
       </div>
+      )}
 
       <div className="mt-3 flex flex-wrap gap-2">
         {next && (

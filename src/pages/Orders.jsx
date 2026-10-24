@@ -22,7 +22,7 @@ export default function Orders() {
       const mine = unwrap(
         await supabase
           .from('orders')
-          .select('tracking_token, code, status, total, created_at, scheduled_for, items:order_items(qty), restaurant:restaurants(name, cover_url)')
+          .select('tracking_token, code, status, total, created_at, scheduled_for, order_type, table_name, items:order_items(qty), restaurant:restaurants(name, cover_url)')
           .eq('customer_id', user.id)
           .order('created_at', { ascending: false })
           .limit(50),
@@ -65,6 +65,7 @@ export default function Orders() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-extrabold">{o.restaurant.name}</p>
                       <p className="truncate text-xs text-neutral-500">
+                        {o.order_type === 'dine_in' && `🍽️ ${o.table_name} · `}
                         {dateTime(o.created_at, settings.timezone)} · {count} productos · {money(o.total)}
                       </p>
                       <span className={`mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${st.cls}`}>

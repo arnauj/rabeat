@@ -1,0 +1,223 @@
+import { useEffect, useState } from 'react'
+import QRCode from 'qrcode'
+import Icon from '../components/Icon.jsx'
+import { Button, Card, ErrorBox, Field, Loading, Toggle, useToast } from '../components/ui.jsx'
+import { useAsync } from '../lib/useAsync.js'
+import { useSettings } from '../lib/settings.jsx'
+import { supabase, unwrap } from '../lib/supabase.js'
+
+// Enlace que abre la carta en modo mesa (usa la dirección actual de la web)
+export const tableUrl = (code) => `${window.location.origin}${window.location.pathname}#/mesa/${code}`
+
+const qrDataUrl = (code, width = 600) =>
+  QRCode.toDataURL(tableUrl(code), { width, margin: 1, errorCorrectionLevel: 'M', color: { dark: '#111111', light: '#ffffff' } })
+
+// Tarjeta imprimible: nombre del local, QR, mesa y llamada a la acción
+async function tableCard(table, restaurantName) {
+  const W = 800
+  const H = 1100
+  const canvas = Object.assign(document.createElement('canvas'), { width: W, height: H })
+  const ctx = canvas.getContext('2d')
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, W, H)
+  ctx.fillStyle = '#E30613'
+  ctx.fillRect(0, 0, W, 150)
+  ctx.fillStyle = '#ffffff'
+  ctx.textAlign = 'center'
+  ctx.font = 'italic 900 56px Rubik, sans-serif'
+  ctx.fillText(restaurantName, W / 2, 98, W - 80)
+  const qr = await new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    qrDataUrl(table.code, 620).then((url) => (img.src = url))
+  })
+  ctx.drawImage(qr, (W - 620) / 2, 200, 620, 620)
+  ctx.fillStyle = '#111111'
+  ctx.font = '800 72px "Plus Jakarta Sans", sans-serif'
+  ctx.fillText(table.name, W / 2, 920, W - 80)
+  ctx.font = '600 34px "Plus Jakarta Sans", sans-serif'
+  ctx.fillStyle = '#555555'
+  ctx.fillText('Escanea y pide desde tu mesa', W / 2, 985)
+  ctx.font = 'italic 900 30px Rubik, sans-serif'
+  ctx.fillStyle = '#E30613'
+  ctx.fillText('rabeat', W / 2, 1050)
+  return canvas.toDataURL('image/png')
+}
+
+function download(dataUrl, name) {
+  Object.assign(document.createElement('a'), { href: dataUrl, download: name }).click()
+}
+
+export default function TablesEditor({ restaurant: r }) {
+  const toast = useToast()
+  const { settings } = useSettings()
+  const { data: tables, error, loading, reload } = useAsync(
+    async () => unwrap(await supabase.from('restaurant_tables').select('*').eq('restaurant_id', r.id).order('position').order('created_at')),
+    [r.id],
+  )
+  const [name, setName] = useState('')
+  const [bulk, setBulk] = useState('10')
+  const [busy, setBusy] = useState(false)
+
+  const insert = async (rows) => {
+    setBusy(true)
+    const start = tables?.length ?? 0
+    const { error } = await supabase.from('restaurant_tables').insert(rows.map((n, i) => ({ restaurant_id: r.id, name: n, position: start + i })))
+    setBusy(false)
+    if (error) return toast(error.message, 'error')
+    toast(rows.length > 1 ? `${rows.length} mesas creadas` : 'Mesa creada')
+    reload(true)
+  }
+
+  const addOne = (e) => {
+    e.preventDefault()
+    if (name.trim()) insert([name.trim()]).then(() => setName(''))
+  }
+
+  const addBulk = () => {
+    const n = Math.min(100, Math.max(1, Number(bulk) || 0))
+    const existing = new Set((tables ?? []).map((t) => t.name.toLowerCase()))
+    const names = []
+    for (let i = 1; names.length < n && i < 1000; i++) if (!existing.has(`mesa ${i}`)) names.push(`Mesa ${i}`)
+    insert(names)
+  }
+
+  const printAll = async () => {
+    const active = (tables ?? []).filter((t) => t.active)
+    if (!active.length) return toast('No hay mesas activas', 'error')
+    const win = window.open('', '_blank')
+    if (!win) return toast('Permite las ventanas emergentes para imprimir', 'error')
+    win.document.write('<p style="font-family:sans-serif">Preparando QR…</p>')
+    const cards = await Promise.all(active.map((t) => tableCard(t, r.name)))
+    win.document.open()
+    win.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>QR mesas · ${r.name}</title>
+      <style>body{margin:0;font-family:sans-serif}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8mm;padding:8mm}
+      img{width:100%;border:1px solid #ddd;border-radius:6mm;page-break-inside:avoid}@media print{.grid{padding:0}}</style></head>
+      <body><div class="grid">${cards.map((c) => `<img src="${c}">`).join('')}</div>
+      <script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`)
+    win.document.close()
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-3xl bg-ink p-5 text-white">
+        <p className="text-lg font-extrabold">🍽️ Pedidos desde la mesa</p>
+        <p className="mt-1 text-sm text-white/75">
+          Imprime un QR por mesa. Al escanearlo, el cliente ve la carta y pide sin dirección ni gastos de envío; el pedido te llega al
+          panel indicando la mesa. Comisión de rabeat en estos pedidos: <b>{settings.dine_in_commission_pct}%</b>.
+        </p>
+      </div>
+
+      <Card title="Añadir mesas" icon="plus">
+        <form onSubmit={addOne} className="flex gap-2">
+          <Field className="flex-1" placeholder="Nombre: Mesa 1, Terraza 3, Barra…" value={name} onChange={(e) => setName(e.target.value)} />
+          <Button type="submit" variant="dark" disabled={!name.trim() || busy}>
+            Añadir
+          </Button>
+        </form>
+        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-neutral-500">o crea de golpe</span>
+          <input
+            value={bulk}
+            onChange={(e) => setBulk(e.target.value.replace(/\D/g, '').slice(0, 3))}
+            inputMode="numeric"
+            className="w-16 rounded-xl bg-neutral-100 px-3 py-2 text-center font-bold outline-none focus:ring-2 focus:ring-brand-500"
+            aria-label="Número de mesas"
+          />
+          <Button variant="soft" className="!py-2" onClick={addBulk} disabled={busy}>
+            mesas numeradas
+          </Button>
+        </div>
+      </Card>
+
+      {loading && !tables ? (
+        <Loading />
+      ) : error ? (
+        <ErrorBox error={error} onRetry={reload} />
+      ) : tables.length === 0 ? (
+        <p className="text-center text-sm text-neutral-500">Todavía no hay mesas.</p>
+      ) : (
+        <>
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-bold">{tables.length} mesas</p>
+            <Button variant="dark" className="!py-2" onClick={printAll}>
+              <Icon name="receipt" className="size-4" /> Imprimir todos los QR
+            </Button>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {tables.map((t) => (
+              <TableCard key={t.id} table={t} restaurantName={r.name} onChange={() => reload(true)} />
+            ))}
+          </div>
+          {!r.active && (
+            <p className="rounded-2xl bg-brand-50 p-3 text-sm font-semibold text-brand-800">
+              El restaurante está oculto: los QR no funcionarán hasta que lo publiques.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function TableCard({ table: t, restaurantName, onChange }) {
+  const toast = useToast()
+  const [qr, setQr] = useState(null)
+  const [name, setName] = useState(t.name)
+
+  useEffect(() => {
+    qrDataUrl(t.code, 300).then(setQr)
+  }, [t.code])
+
+  const update = async (patch, ok) => {
+    const { error } = await supabase.from('restaurant_tables').update(patch).eq('id', t.id)
+    if (error) return toast(error.message, 'error')
+    if (ok) toast(ok)
+    onChange()
+  }
+
+  const remove = async () => {
+    if (!confirm(`¿Eliminar ${t.name}? Su QR dejará de funcionar.`)) return
+    const { error } = await supabase.from('restaurant_tables').delete().eq('id', t.id)
+    if (error) return toast(error.message, 'error')
+    toast('Mesa eliminada')
+    onChange()
+  }
+
+  return (
+    <article className={`flex gap-3 rounded-3xl bg-white p-3 ring-1 ring-neutral-200/70 ${t.active ? '' : 'opacity-60'}`}>
+      <div className="size-28 shrink-0 overflow-hidden rounded-2xl bg-white ring-1 ring-neutral-200">
+        {qr && <img src={qr} alt={`QR de ${t.name}`} className="size-full" />}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onBlur={() => name.trim() && name !== t.name && update({ name: name.trim() }, 'Mesa renombrada')}
+          className="w-full rounded-xl px-2 py-1 font-extrabold outline-none hover:bg-neutral-50 focus:bg-neutral-100 focus:ring-2 focus:ring-brand-500"
+          aria-label="Nombre de la mesa"
+        />
+        <Toggle checked={t.active} onChange={(v) => update({ active: v }, v ? 'Mesa activada' : 'Mesa desactivada')} label={<span className="text-xs">Activa</span>} />
+        <div className="mt-auto flex gap-1">
+          <button
+            onClick={async () => download(await tableCard(t, restaurantName), `qr-${t.name.toLowerCase().replace(/\s+/g, '-')}.png`)}
+            className="flex-1 rounded-xl bg-neutral-100 py-2 text-xs font-bold"
+          >
+            Descargar
+          </button>
+          <button
+            onClick={() => navigator.clipboard?.writeText(tableUrl(t.code)).then(() => toast('Enlace copiado'))}
+            className="grid size-8 place-items-center rounded-xl bg-neutral-100"
+            aria-label="Copiar enlace"
+            title="Copiar enlace"
+          >
+            <Icon name="copy" className="size-4" />
+          </button>
+          <button onClick={remove} className="grid size-8 place-items-center rounded-xl text-neutral-400 hover:bg-neutral-100 hover:text-brand-600" aria-label="Eliminar mesa">
+            <Icon name="trash" className="size-4" />
+          </button>
+        </div>
+      </div>
+    </article>
+  )
+}

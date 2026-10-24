@@ -41,7 +41,25 @@ export async function notifyOrder(orderId: string, event: OrderEvent) {
   }
   const sent: Promise<boolean>[] = []
 
-  if (event === 'confirmed') {
+  const dineIn = order.order_type === 'dine_in'
+
+  if (event === 'confirmed' && dineIn) {
+    sent.push(
+      sendEmail(
+        order.customer_email,
+        `Pedido ${order.code} · ${order.table_name} · ${r.name}`,
+        layout(
+          '¡Pedido enviado a cocina!',
+          p(`${esc(r.name)} ya tiene tu pedido <b>${order.code}</b> para la <b>${esc(order.table_name)}</b>.`) +
+            p(order.payment_method === 'cash' ? `Pagarás <b>${money(order.total)}</b> en el local.` : 'Pago recibido. ¡Gracias!') +
+            itemsTable(order.items, totals),
+          { href: link, label: 'Ver mi pedido' },
+        ),
+      ),
+    )
+  }
+
+  if (event === 'confirmed' && !dineIn) {
     sent.push(
       sendEmail(
         order.customer_email,
@@ -74,16 +92,19 @@ export async function notifyOrder(orderId: string, event: OrderEvent) {
       ),
     )
 
+  }
+
+  if (event === 'confirmed') {
     // Restaurante (email del local y de su responsable)
     const { data: owner } = r.owner_id ? await db.from('profiles').select('email').eq('id', r.owner_id).single() : { data: null }
     const restaurantEmails = [...new Set([r.email, owner?.email].filter(Boolean))]
     sent.push(
       sendEmail(
         restaurantEmails,
-        `🔔 Nuevo pedido ${order.code}`,
+        `🔔 Nuevo pedido ${order.code}${dineIn ? ` · ${order.table_name}` : ''}`,
         layout(
           `Nuevo pedido ${order.code}`,
-          p(`Entrega ${when(order, tz)} a ${esc(order.customer_name)}.`) + itemsTable(order.items.map((i: any) => ({ ...i, unit_price: i.base_price }))),
+          p(dineIn ? `🍽️ Pedido en sala: <b>${esc(order.table_name)}</b>.` : `Entrega ${when(order, tz)} a ${esc(order.customer_name)}.`) + itemsTable(order.items.map((i: any) => ({ ...i, unit_price: i.base_price }))),
           { href: `${siteUrl()}#/panel/pedidos`, label: 'Ver en el panel' },
         ),
       ),
@@ -119,7 +140,7 @@ export async function notifyOrder(orderId: string, event: OrderEvent) {
     )
   }
 
-  if (event === 'delivered') {
+  if (event === 'delivered' && !dineIn) {
     sent.push(
       sendEmail(
         order.customer_email,

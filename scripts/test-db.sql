@@ -192,4 +192,61 @@ set local role authenticated;
 set local request.jwt.claim.sub = '00000000-0000-0000-0000-000000000001';
 select public.platform_report(now() - interval '1 day', now() + interval '1 day');
 commit;
+
+-- ---------- Pedidos en mesa ----------
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '00000000-0000-0000-0000-000000000002';
+insert into public.restaurant_tables (restaurant_id, name) select id, 'Mesa 4' from public.restaurants where slug = 'conejo-burger';
+select pg_temp.ok((select count(*) = 1 from public.restaurant_tables), 'restaurante crea mesa');
+commit;
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '00000000-0000-0000-0000-000000000003';
+select pg_temp.ok((select count(*) = 0 from public.restaurant_tables), 'otro restaurante no ve las mesas ajenas');
+do $$ begin
+  insert into public.restaurant_tables (restaurant_id, name) select id, 'X' from public.restaurants where slug = 'conejo-burger';
+  raise exception 'FALLO: creó mesa ajena';
+exception when insufficient_privilege then raise notice 'ok · no crea mesas en restaurantes ajenos';
+end $$;
+commit;
+select code as tcode from public.restaurant_tables where name = 'Mesa 4' \gset
+begin;
+set local role anon;
+select pg_temp.ok(public.get_table(:'tcode') -> 'restaurant' ->> 'slug' = 'conejo-burger', 'anon resuelve la mesa del QR');
+select pg_temp.ok(public.get_table('noexiste') is null, 'código de mesa inexistente');
+commit;
+
+insert into public.orders (code, order_type, table_id, table_name, restaurant_id, customer_name, status, payment_method,
+  subtotal, delivery_fee, total, restaurant_subtotal, markup_pct, markup_amount, commission_pct, commission_amount, restaurant_payout)
+select 'RBMESA1', 'dine_in', t.id, t.name, t.restaurant_id, 'Mesa 4', 'confirmed', 'cash', 11, 0, 11, 11, 0, 0, 5, 0.55, 10.45
+from public.restaurant_tables t where t.name = 'Mesa 4';
+do $$ begin
+  insert into public.orders (code, restaurant_id, customer_name, payment_method, subtotal, delivery_fee, total, restaurant_subtotal, markup_pct, markup_amount, commission_pct, commission_amount, restaurant_payout)
+  select 'RBBAD', id, 'x', 'cash', 1, 0, 1, 1, 0, 0, 0, 0, 1 from public.restaurants limit 1;
+  raise exception 'FALLO: pedido a domicilio sin dirección';
+exception when check_violation then raise notice 'ok · domicilio exige dirección';
+end $$;
+
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '00000000-0000-0000-0000-000000000004';
+select pg_temp.ok((select count(*) = 0 from public.orders where code = 'RBMESA1'), 'rider no ve pedidos en mesa');
+do $$ begin
+  perform public.rider_accept_order((select id from public.orders where code = 'RBMESA1'));
+  raise exception 'FALLO: rider aceptó pedido en mesa';
+exception when raise_exception then
+  if sqlerrm like 'FALLO%' then raise; end if;
+  raise notice 'ok · rider no acepta pedidos en mesa';
+end $$;
+commit;
+
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '00000000-0000-0000-0000-000000000002';
+select public.set_order_status((select id from public.orders where code = 'RBMESA1'), 'preparing');
+select public.set_order_status((select id from public.orders where code = 'RBMESA1'), 'delivered');
+select pg_temp.ok((select status = 'delivered' and payment_status = 'paid' from public.orders where code = 'RBMESA1'), 'restaurante sirve y cobra en mesa');
+select pg_temp.ok((public.restaurant_sales(null, now() - interval '1 day', now() + interval '1 day') ->> 'dine_in_orders')::int = 1, 'ventas separan mesa');
+commit;
 \echo TODAS LAS PRUEBAS OK

@@ -40,14 +40,14 @@ export default function Payouts() {
       ) : (
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatTile label="Facturado a clientes" value={money(data.gmv)} hint={`${data.orders} pedidos · ${data.cash_orders} en efectivo`} />
+            <StatTile label="Facturado a clientes" value={money(data.gmv)} hint={`${data.orders} pedidos · ${data.dine_in_orders ?? 0} en mesa · ${data.cash_orders} en efectivo`} />
             <StatTile label="Ingresos plataforma" value={money(platformRevenue(data))} accent hint="recargo + comisión + envío − descuentos" />
             <StatTile label="A pagar a restaurantes" value={money(data.restaurant_payouts)} />
             <StatTile label="Propinas a repartidores" value={money(data.tips)} />
           </div>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatTile label="Recargo en precios" value={money(data.markup)} hint={`${settings.price_markup_pct}% actual`} />
-            <StatTile label="Comisión restaurantes" value={money(data.commission)} hint={`${settings.restaurant_commission_pct}% actual`} />
+            <StatTile label="Comisión restaurantes" value={money(data.commission)} hint={`${money(data.dine_in_commission ?? 0)} de pedidos en mesa`} />
             <StatTile label="Gastos de envío" value={money(data.delivery)} />
             <StatTile label="Descuentos (promos)" value={`−${money(data.discounts)}`} />
           </div>
@@ -60,27 +60,41 @@ export default function Payouts() {
                 className="!py-2"
                 onClick={() =>
                   downloadCsv(`liquidacion-restaurantes-${period}.csv`, [
-                    ['Restaurante', 'Pedidos', 'Ventas', 'Comisión', 'A transferir', 'Cobrado en efectivo por riders'],
-                    ...data.by_restaurant.map((r) => [r.name, r.orders, num(r.gross), num(r.commission), num(r.payout), num(r.cash_collected)]),
+                    ['Restaurante', 'Pedidos', 'En mesa', 'Ventas', 'Comisión', 'Neto restaurante', 'Cobrado por el local', 'A transferir', 'Efectivo cobrado por riders'],
+                    ...data.by_restaurant.map((r) => [
+                      r.name,
+                      r.orders,
+                      r.dine_in_orders ?? 0,
+                      num(r.gross),
+                      num(r.commission),
+                      num(r.payout),
+                      num(r.cash_in_restaurant ?? 0),
+                      num(r.payout - (r.cash_in_restaurant ?? 0)),
+                      num(r.cash_collected),
+                    ]),
                   ])
                 }
               >
                 <Icon name="receipt" className="size-4" /> CSV
               </Button>
             </div>
-            <Table head={['Restaurante', 'Pedidos', 'Ventas', 'Comisión', 'A transferir']}>
+            <Table head={['Restaurante', 'Pedidos', 'Ventas', 'Comisión', 'Cobrado en el local', 'A transferir']}>
               {data.by_restaurant.map((r) => (
                 <tr key={r.id}>
                   <td className="px-4 py-3 font-semibold">{r.name}</td>
-                  <td className="px-4 py-3 text-right">{r.orders}</td>
+                  <td className="px-4 py-3 text-right">
+                    {r.orders}
+                    {r.dine_in_orders > 0 && <span className="block text-xs text-neutral-400">{r.dine_in_orders} en mesa</span>}
+                  </td>
                   <td className="px-4 py-3 text-right">{money(r.gross)}</td>
                   <td className="px-4 py-3 text-right text-neutral-500">−{money(r.commission)}</td>
-                  <td className="px-4 py-3 text-right font-extrabold">{money(r.payout)}</td>
+                  <td className="px-4 py-3 text-right text-neutral-500">{money(r.cash_in_restaurant ?? 0)}</td>
+                  <td className="px-4 py-3 text-right font-extrabold">{money(r.payout - (r.cash_in_restaurant ?? 0))}</td>
                 </tr>
               ))}
               {!data.by_restaurant.length && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-neutral-400">
+                  <td colSpan={6} className="px-4 py-6 text-center text-neutral-400">
                     Sin ventas en este periodo
                   </td>
                 </tr>
@@ -88,6 +102,10 @@ export default function Payouts() {
             </Table>
           </section>
 
+          <p className="-mt-3 text-xs text-neutral-500">
+            «Cobrado en el local» son los pedidos en mesa pagados en el propio restaurante: ya tiene ese dinero, así que se descuenta de lo que hay que transferirle.
+            Si sale negativo, es el restaurante quien debe la comisión a rabeat.
+          </p>
           <section>
             <div className="mb-3 flex items-center justify-between gap-3">
               <h2 className="text-lg font-extrabold">Repartidores</h2>
