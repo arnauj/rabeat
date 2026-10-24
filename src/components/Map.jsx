@@ -2,14 +2,14 @@ import { useEffect, useRef } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
-const TILES = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
-const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+const TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
+const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 export const LAS_PALMAS = { lat: 28.1235, lng: -15.4363 }
 
 const ICONS = {
   restaurant: '<div class="grid size-10 place-items-center rounded-full bg-white text-xl shadow-lg ring-2 ring-ink">🍽️</div>',
   home: '<div class="grid size-10 place-items-center rounded-full bg-brand-600 text-xl shadow-lg ring-4 ring-white">🏠</div>',
-  rider: '<div class="grid size-12 place-items-center overflow-hidden rounded-full bg-white shadow-xl ring-4 ring-brand-600"><img src="rider.png" class="w-11" alt=""></div>',
+  rider: '<div class="grid size-10 place-items-center rounded-full bg-brand-600 text-xl shadow-xl ring-4 ring-white">🛵</div>',
 }
 
 const icon = (kind) => L.divIcon({ html: ICONS[kind], className: '', iconSize: [40, 40], iconAnchor: [20, 20] })
@@ -18,7 +18,7 @@ function useLeaflet(ref, center, zoom, options = {}) {
   const map = useRef(null)
   useEffect(() => {
     map.current = L.map(ref.current, { zoomControl: false, attributionControl: true, ...options }).setView([center.lat, center.lng], zoom)
-    L.tileLayer(TILES, { attribution: ATTRIBUTION, maxZoom: 19, subdomains: 'abcd' }).addTo(map.current)
+    L.tileLayer(TILES, { attribution: ATTRIBUTION, maxZoom: 19 }).addTo(map.current)
     L.control.zoom({ position: 'bottomright' }).addTo(map.current)
     return () => map.current.remove()
     // eslint-disable-next-line react-hooks/exhaustive-deps

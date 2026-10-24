@@ -1,24 +1,73 @@
 # rabeat
 Comida a domicilio desde canarias.
 
-Frontend (solo parte visual) hecho con **React 19 + Vite + Tailwind CSS 4**, pensado primero para móvil.
+Web app de reparto de comida pensada primero para móvil: **React 19 + Vite + Tailwind CSS 4** en el frontend (publicado en GitHub Pages) y **Supabase** (Postgres, Auth, Storage, Realtime y Edge Functions) como backend.
 
-## Arrancar
+**Web:** https://arnauj.github.io/rabeat/
+
+## Roles
+
+| Rol | Qué puede hacer |
+|---|---|
+| **Cliente** | Pedir como invitado o con cuenta, dirección con mapa, programar pedidos en restaurantes cerrados, propina, seguimiento en tiempo real, valorar y favoritos |
+| **Restaurante** | Dar de alta sus restaurantes, horario con varios tramos por día, carta por categorías con precios, fotos y alérgenos, gestionar pedidos y ver ventas |
+| **Repartidor** | Ver pedidos disponibles, aceptarlos, marcar recogido/entregado, compartir su ubicación y ver sus propinas |
+| **Superusuario** | Todo lo anterior sobre cualquier restaurante, más usuarios, comisiones, tarifas de envío, promociones y liquidaciones |
+
+## Cómo se calcula un pedido
+
+- **Precio de cada plato** = precio del restaurante + *recargo de la plataforma* (%).
+- **Envío** = tarifa base + €/km × distancia (en línea recta desde el restaurante), hasta un radio máximo.
+- **Comisión al restaurante** (%) sobre su precio de carta. El restaurante cobra *ventas − comisión*.
+- **Propina**: 100 % para el repartidor, en el pago y también después.
+- El servidor (`create-order`) recalcula siempre los importes; la app solo muestra una estimación.
+
+Los porcentajes y tarifas se cambian en **Panel → Comisiones y envío**.
+
+## Pagos (Stripe)
+
+El cobro es centralizado: Stripe Checkout cobra en la cuenta de la plataforma y **Panel → Liquidaciones** muestra lo que se debe a cada restaurante y repartidor (con exportación CSV).
+
+Mientras no haya claves de Stripe, el pago con tarjeta funciona en **modo pruebas** (se simula el cobro). Para activarlo:
+
+1. Copia `supabase/.env.example` a `supabase/.env` y rellena `STRIPE_SECRET_KEY` y `STRIPE_WEBHOOK_SECRET`.
+2. En Stripe → Desarrolladores → Webhooks, crea un endpoint a
+   `https://dodvqylxgqxxfgsakalo.supabase.co/functions/v1/stripe-webhook` con los eventos
+   `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed` y `checkout.session.expired`.
+3. Ejecuta `SUPABASE_ACCESS_TOKEN=sbp_… npm run supabase:secrets`.
+
+## Emails (Gmail)
+
+Al confirmarse un pedido se envía email al cliente (con enlace de seguimiento), a los repartidores activos y al restaurante. También al asignarse repartidor, al entregarse y si se cancela. Para activarlos, pon `SMTP_PASS` (contraseña de aplicación de Gmail) en `supabase/.env` y ejecuta `npm run supabase:secrets`.
+
+## Desarrollo
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
-npm run build    # genera dist/
+npm run dev          # http://localhost:5173 (usa el proyecto Supabase de .env)
+npm test             # lógica de precios/horarios + pruebas de permisos en un Postgres local
 ```
 
-## Qué incluye
+### Backend
 
-- **Inicio**: buscador (restaurantes y platos), categorías, filtro «Solo abiertos» y restaurantes separados en abiertos / cerrados según la hora real.
-- **Restaurantes con horario**: 8 locales de Las Palmas con horarios distintos (24 h, solo desayunos, solo tardes, turnos partidos, cierre pasada la medianoche, día de descanso). Siempre hay alguno abierto y alguno cerrado.
-- **Pedidos programados**: en los cerrados se puede pedir igualmente y elegir una franja de 30 min dentro de su horario (hoy y próximos días).
-- **Menú**: cada plato con foto, título, descripción, precio, ración, kcal, tiempo de preparación, nº de pedidos, etiquetas (top ventas, vegano, picante…) y **alérgenos** (los 14 del Reglamento UE 1169/2011). Filtro para ocultar platos por alérgeno.
-- **Cesta**: cantidades, notas por plato, pedido mínimo y aviso al mezclar restaurantes.
-- **Pago**: dirección, entrega inmediata o programada, tarjeta / Bizum / Apple-Google Pay / efectivo, código promocional (`RABEAT10`, `CONEJO`) y **propina para el rider** (importes rápidos o personalizada).
-- **Seguimiento**: estados del pedido simulados, mapa con el rider en camino, posibilidad de añadir más propina y valorar.
+```bash
+# Todo (migraciones, datos iniciales, usuarios, auth, secretos y funciones)
+SUPABASE_ACCESS_TOKEN=sbp_… npm run supabase:setup
 
-Los datos son de prueba (`src/data/restaurants.js`) y la cesta y los pedidos se guardan en `localStorage`.
+npm run supabase:migrate     # solo migraciones nuevas
+npm run supabase:functions   # solo Edge Functions
+npm run supabase:secrets     # secretos de supabase/.env + configuración de auth
+```
+
+Los usuarios iniciales se definen en `supabase/users.local.json` (no se sube a GitHub).
+
+### Estructura
+
+```
+src/                 app (cliente, panel en src/panel, reparto en src/rider)
+supabase/migrations  esquema, seguridad (RLS) y funciones SQL
+supabase/functions   Edge Functions: create-order, stripe-webhook, confirm-payment,
+                     add-tip, notify, admin-users, public-config
+supabase/functions/_shared/{pricing,hours}.js  lógica compartida app ↔ servidor
+scripts/             instalación en Supabase, seed y pruebas
+```
