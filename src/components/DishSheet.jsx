@@ -4,7 +4,7 @@ import { QtyStepper, SafeImg, Sheet } from './ui.jsx'
 import { ALLERGENS } from '../data/allergens.js'
 import { compact, money } from '../lib/format.js'
 
-export default function DishSheet({ dish, restaurant, closed, onClose, onAdd }) {
+export default function DishSheet({ dish, restaurant, price, closed, canOrder = true, onClose, onAdd }) {
   const [qty, setQty] = useState(1)
   const [note, setNote] = useState('')
 
@@ -18,7 +18,7 @@ export default function DishSheet({ dish, restaurant, closed, onClose, onAdd }) 
       {dish && (
         <>
           <div className="relative">
-            <SafeImg src={dish.image.replace('w=600', 'w=1000')} alt={dish.name} className="aspect-[4/3] w-full" />
+            <SafeImg src={dish.image_url?.replace('w=600', 'w=1000')} alt={dish.name} className="aspect-[4/3] w-full" />
             <button
               onClick={onClose}
               className="absolute top-4 right-4 grid size-10 place-items-center rounded-full bg-white/90 shadow-lg backdrop-blur"
@@ -33,10 +33,10 @@ export default function DishSheet({ dish, restaurant, closed, onClose, onAdd }) 
             <p className="mt-2 text-[15px] leading-relaxed text-neutral-600">{dish.description}</p>
 
             <div className="mt-5 grid grid-cols-4 gap-2 text-center">
-              <Info icon="🍽️" value={dish.portion} label="Ración" />
-              <Info icon="⚡" value={`${dish.kcal}`} label="kcal" />
-              <Info icon="⏱️" value={`${dish.prep} min`} label="Preparación" />
-              <Info icon="🛵" value={compact(dish.orders)} label="Pedidos" />
+              <Info icon="🍽️" value={dish.portion || '—'} label="Ración" />
+              <Info icon="⚡" value={dish.kcal ? `${dish.kcal}` : '—'} label="kcal" />
+              <Info icon="⏱️" value={dish.prep_minutes ? `${dish.prep_minutes} min` : '—'} label="Preparación" />
+              <Info icon="🛵" value={compact(dish.orders_count)} label="Pedidos" />
             </div>
 
             <div className="mt-5 rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-200">
@@ -77,6 +77,7 @@ export default function DishSheet({ dish, restaurant, closed, onClose, onAdd }) 
             )}
           </div>
 
+          {canOrder && (
           <div className="sticky bottom-0 flex items-center gap-3 border-t border-neutral-100 bg-white/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
             <QtyStepper value={qty} onChange={setQty} min={1} />
             <button
@@ -84,9 +85,10 @@ export default function DishSheet({ dish, restaurant, closed, onClose, onAdd }) 
               className="flex flex-1 items-center justify-between rounded-2xl bg-brand-600 px-5 py-3.5 font-bold text-white shadow-lg shadow-brand-600/30 transition active:scale-[0.98]"
             >
               <span>Añadir</span>
-              <span>{money(dish.price * qty)}</span>
+              <span>{money(price * qty)}</span>
             </button>
           </div>
+          )}
         </>
       )}
     </Sheet>

@@ -1,19 +1,71 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { useNow } from '../components/ui.jsx'
+import { MapView } from '../components/Map.jsx'
+import { Loading, Spinner, useToast } from '../components/ui.jsx'
+import { useAsync } from '../lib/useAsync.js'
+import { getTracking } from '../lib/data.js'
+import { callFunction, supabase } from '../lib/supabase.js'
+import { useSettings } from '../lib/settings.jsx'
 import { useCart } from '../lib/cart.jsx'
-import { money } from '../lib/format.js'
-import { orderProgress, STAGES } from '../lib/orders.js'
+import { money, PAYMENT_METHOD } from '../lib/format.js'
 import { formatHour, slotLabel } from '../lib/time.js'
 
-const ROUTE = 'M 60 250 C 110 250 120 190 170 180 S 230 120 260 110 S 320 60 340 50'
+const STAGES = [
+  { id: 'confirmed', label: 'Pedido confirmado', hint: 'El restaurante ha recibido tu pedido' },
+  { id: 'preparing', label: 'En la cocina', hint: 'Están preparando tu comida' },
+  { id: 'ready', label: 'Listo para recoger', hint: 'Esperando a tu rider' },
+  { id: 'on_the_way', label: 'En camino', hint: 'Tu rider va a toda liebre' },
+  { id: 'delivered', label: 'Entregado', hint: '¡Que aproveche!' },
+]
 
-export default function OrderTracking({ id }) {
-  const { orders, updateOrder } = useCart()
-  const now = useNow(500)
-  const order = orders.find((o) => o.id === id)
+export default function OrderTracking({ token, query }) {
+  const { settings } = useSettings()
+  const { rememberOrder } = useCart()
+  const toast = useToast()
+  const tz = settings.timezone
+  const { data: o, loading, reload } = useAsync(() => getTracking(token), [token])
+  const [checking, setChecking] = useState(false)
 
-  if (!order)
+  // Actualización periódica mientras el pedido está activo
+  useEffect(() => {
+    if (!o || ['delivered', 'cancelled'].includes(o.status)) return
+    const t = setInterval(() => reload(true), 8000)
+    return () => clearInterval(t)
+  }, [o, reload])
+
+  // Vuelta desde Stripe: comprueba el pago sin esperar al webhook
+  useEffect(() => {
+    if (!query?.get('pago') && !query?.get('propina')) return
+    setChecking(true)
+    callFunction('confirm-payment', { token })
+      .then(() => reload(true))
+      .catch(() => {})
+      .finally(() => setChecking(false))
+    if (query.get('propina')) toast('¡Gracias por la propina! 🧡')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token])
+
+  useEffect(() => {
+    if (o) rememberOrder({ token: o.token, code: o.code, restaurant: o.restaurant.name, created_at: o.created_at })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [o?.token])
+
+  const markers = useMemo(
+    () =>
+      o
+        ? [
+            { ...o.restaurant, kind: 'restaurant', label: o.restaurant.name },
+            { lat: o.lat, lng: o.lng, kind: 'home', label: 'Entrega' },
+            ...(o.rider_lat && ['confirmed', 'preparing', 'ready', 'on_the_way'].includes(o.status)
+              ? [{ lat: o.rider_lat, lng: o.rider_lng, kind: 'rider', label: 'Rider' }]
+              : []),
+          ]
+        : [],
+    [o],
+  )
+
+  if (loading && !o) return <Loading label="Buscando tu pedido…" />
+  if (!o)
     return (
       <div className="grid min-h-dvh place-items-center text-center">
         <div>
@@ -26,116 +78,140 @@ export default function OrderTracking({ id }) {
       </div>
     )
 
-  const progress = orderProgress(order, now)
-  const created = new Date(order.createdAt)
-  const arrival = order.scheduledFor
-    ? new Date(order.scheduledFor)
-    : new Date(created.getTime() + order.eta[1] * 60_000)
-  const delivered = progress.stageIndex === STAGES.length - 1
+  const stageIndex = STAGES.findIndex((s) => s.id === o.status)
+  const delivered = o.status === 'delivered'
+  const cancelled = o.status === 'cancelled'
+  const pendingPayment = o.status === 'pending_payment'
+  const scheduledWaiting = o.scheduled_for && o.status === 'confirmed'
+  const eta = new Date(new Date(o.paid_at ?? o.created_at).getTime() + (o.restaurant.prep_max + Math.round(o.distance_km * 3 + 5)) * 60_000)
 
   return (
     <div className="min-h-dvh bg-neutral-50 pb-10">
-      {/* Cabecera con mapa */}
       <div className="relative overflow-hidden bg-ink text-white">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-2">
           <a href="#/pedidos" className="grid size-10 place-items-center rounded-full bg-white/10" aria-label="Volver a pedidos">
             <Icon name="back" />
           </a>
-          <div>
-            <p className="text-xs text-white/60">Pedido #{order.id}</p>
-            <p className="font-extrabold">{order.restaurantName}</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs text-white/60">Pedido {o.code}</p>
+            <p className="truncate font-extrabold">{o.restaurant.name}</p>
           </div>
+          <button onClick={() => reload()} className="grid size-10 place-items-center rounded-full bg-white/10" aria-label="Actualizar">
+            <Icon name="refresh" className="size-4" />
+          </button>
         </div>
         <div className="mx-auto max-w-3xl px-4 pb-24">
-          {progress.scheduled ? (
-            <ScheduledHero order={order} arrival={arrival} />
+          {pendingPayment ? (
+            <div className="mt-4 rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
+              <p className="flex items-center gap-2 font-display text-2xl font-black italic">
+                {checking && <Spinner className="size-5" />} Esperando el pago…
+              </p>
+              <p className="mt-2 text-sm text-white/70">Si ya has pagado, se confirmará en unos segundos. Si cancelaste el pago, el pedido se anulará solo.</p>
+            </div>
+          ) : cancelled ? (
+            <div className="mt-4 rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
+              <p className="font-display text-3xl font-black italic">Pedido cancelado</p>
+              <p className="mt-2 text-sm text-white/70">
+                {o.payment_status === 'paid' && o.payment_method === 'card' ? 'Te devolveremos el importe en tu tarjeta.' : 'No se ha realizado ningún cargo.'}
+              </p>
+            </div>
+          ) : scheduledWaiting ? (
+            <div className="mt-4 rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-3 py-1 text-xs font-bold">
+                <Icon name="calendar" className="size-3.5" /> Pedido programado
+              </span>
+              <p className="mt-3 font-display text-3xl font-black tracking-tight italic sm:text-4xl">{slotLabel(new Date(o.scheduled_for), new Date(), tz)}</p>
+              <p className="mt-2 text-sm text-white/70">¡Listo! El restaurante lo preparará para esa hora y te avisaremos por email cuando salga tu rider.</p>
+            </div>
           ) : (
             <>
-              <p className="mt-2 text-sm text-white/70">
-                {delivered ? 'Tu pedido ya está en casa' : 'Llegada estimada'}
+              <p className="mt-2 text-sm text-white/70">{delivered ? 'Tu pedido ya está en casa' : o.scheduled_for ? 'Entrega programada' : 'Llegada estimada'}</p>
+              <p className="font-display text-5xl font-black tracking-tight italic">
+                {delivered ? '¡Entregado!' : o.scheduled_for ? formatHour(new Date(o.scheduled_for), tz) : formatHour(eta, tz)}
               </p>
-              <p className="font-display text-5xl font-black italic tracking-tight">
-                {delivered ? '¡Entregado!' : formatHour(arrival)}
-              </p>
-              <DeliveryMap ride={progress.ride} stageIndex={progress.stageIndex} />
             </>
+          )}
+          {!pendingPayment && !cancelled && (
+            <div className="mt-4 overflow-hidden rounded-3xl ring-1 ring-white/10">
+              <MapView markers={markers} className="h-64 sm:h-80" />
+            </div>
           )}
         </div>
       </div>
 
       <div className="relative mx-auto -mt-16 max-w-3xl space-y-4 px-4">
-        {/* Progreso */}
-        <div className="rounded-3xl bg-white p-5 shadow-xl shadow-neutral-900/5 ring-1 ring-neutral-200/70">
-          <div className="mb-5 grid grid-cols-4 gap-1.5">
-            {STAGES.map((s, i) => (
-              <div key={s.id} className="h-1.5 overflow-hidden rounded-full bg-neutral-100">
-                <div
-                  className={`h-full rounded-full bg-brand-600 transition-all duration-700 ${
-                    i === progress.stageIndex && !delivered ? 'animate-pulse' : ''
-                  }`}
-                  style={{ width: i <= progress.stageIndex ? '100%' : '0%' }}
-                />
-              </div>
-            ))}
+        {!pendingPayment && !cancelled && (
+          <div className="rounded-3xl bg-white p-5 shadow-xl shadow-neutral-900/5 ring-1 ring-neutral-200/70">
+            <div className="mb-5 grid grid-cols-5 gap-1.5">
+              {STAGES.map((s, i) => (
+                <div key={s.id} className="h-1.5 overflow-hidden rounded-full bg-neutral-100">
+                  <div
+                    className={`h-full rounded-full bg-brand-600 transition-all duration-700 ${i === stageIndex && !delivered ? 'animate-pulse' : ''}`}
+                    style={{ width: i <= stageIndex ? '100%' : '0%' }}
+                  />
+                </div>
+              ))}
+            </div>
+            <ol className="space-y-3">
+              {STAGES.map((s, i) => {
+                const done = i < stageIndex || delivered
+                const current = i === stageIndex
+                return (
+                  <li key={s.id} className="flex items-center gap-3">
+                    <span
+                      className={`grid size-8 shrink-0 place-items-center rounded-full text-sm font-bold transition ${
+                        done ? 'bg-brand-600 text-white' : current ? 'bg-brand-50 text-brand-600 ring-2 ring-brand-600' : 'bg-neutral-100 text-neutral-400'
+                      }`}
+                    >
+                      {done ? <Icon name="check" className="size-4" strokeWidth={3} /> : i + 1}
+                    </span>
+                    <div>
+                      <p className={`text-sm font-bold ${i > stageIndex ? 'text-neutral-400' : ''}`}>{s.label}</p>
+                      {current && !delivered && <p className="text-xs text-neutral-500">{s.hint}</p>}
+                    </div>
+                  </li>
+                )
+              })}
+            </ol>
           </div>
-          <ol className="space-y-3">
-            {STAGES.map((s, i) => {
-              const done = i < progress.stageIndex || delivered
-              const current = i === progress.stageIndex
-              return (
-                <li key={s.id} className="flex items-center gap-3">
-                  <span
-                    className={`grid size-8 shrink-0 place-items-center rounded-full text-sm font-bold transition ${
-                      done ? 'bg-brand-600 text-white' : current ? 'bg-brand-50 text-brand-600 ring-2 ring-brand-600' : 'bg-neutral-100 text-neutral-400'
-                    }`}
-                  >
-                    {done ? <Icon name="check" className="size-4" strokeWidth={3} /> : i + 1}
-                  </span>
-                  <div>
-                    <p className={`text-sm font-bold ${i > progress.stageIndex ? 'text-neutral-400' : ''}`}>{s.label}</p>
-                    {current && <p className="text-xs text-neutral-500">{s.hint}</p>}
-                  </div>
-                </li>
-              )
-            })}
-          </ol>
-        </div>
+        )}
 
-        {/* Rider */}
-        <RiderCard order={order} delivered={delivered} active={progress.stageIndex >= 1} onTip={(extra) =>
-          updateOrder(order.id, { tip: order.tip + extra, total: order.total + extra })
-        } onRate={(rating) => updateOrder(order.id, { rating })} />
+        {!pendingPayment && !cancelled && <RiderCard order={o} delivered={delivered} onChange={() => reload(true)} />}
 
-        {/* Resumen */}
         <div className="rounded-3xl bg-white p-5 ring-1 ring-neutral-200/70">
           <h3 className="font-extrabold">Resumen</h3>
           <ul className="mt-3 space-y-1.5 text-sm">
-            {order.items.map((i) => (
-              <li key={i.key} className="flex justify-between gap-3">
+            {o.items.map((i, idx) => (
+              <li key={idx} className="flex justify-between gap-3">
                 <span className="text-neutral-600">
                   <b className="text-ink">{i.qty}×</b> {i.name}
+                  {i.note && <span className="block text-xs text-neutral-400">“{i.note}”</span>}
                 </span>
-                <span className="font-semibold tabular-nums">{money(i.qty * i.price)}</span>
+                <span className="font-semibold tabular-nums">{money(i.qty * i.unit_price)}</span>
               </li>
             ))}
           </ul>
           <dl className="mt-4 space-y-1.5 border-t border-dashed border-neutral-200 pt-4 text-sm">
-            <Line label="Subtotal" value={money(order.subtotal)} />
-            <Line label="Envío" value={order.deliveryFee === 0 ? 'Gratis' : money(order.deliveryFee)} />
-            <Line label="Tarifa de servicio" value={money(order.serviceFee)} />
-            <Line label="Propina rider" value={money(order.tip)} />
-            {order.discount > 0 && <Line label="Descuento" value={`−${money(order.discount)}`} />}
+            <Line label="Subtotal" value={money(o.subtotal)} />
+            <Line label={`Envío · ${Number(o.distance_km).toFixed(1).replace('.', ',')} km`} value={money(o.delivery_fee)} />
+            <Line label="Propina rider" value={money(o.tip)} />
+            {Number(o.discount) > 0 && <Line label={`Descuento (${o.promo_code})`} value={`−${money(o.discount)}`} />}
             <div className="flex justify-between pt-2 text-base font-extrabold">
-              <dt>Total · {order.payment}</dt>
-              <dd className="tabular-nums">{money(order.total)}</dd>
+              <dt>Total · {PAYMENT_METHOD[o.payment_method]}</dt>
+              <dd className="tabular-nums">{money(o.total)}</dd>
             </div>
           </dl>
           <p className="mt-4 flex items-start gap-2 rounded-2xl bg-neutral-100 p-3 text-xs text-neutral-600">
             <Icon name="pin" className="size-4 shrink-0 text-brand-600" />
-            {order.address.street}
-            {order.address.details && `, ${order.address.details}`}
-            {order.address.notes && ` · ${order.address.notes}`}
+            {o.address.street}
+            {o.address.details && `, ${o.address.details}`}
+            {o.address.notes && ` · ${o.address.notes}`}
           </p>
+          {o.restaurant.phone && (
+            <a href={`tel:${o.restaurant.phone.replace(/\s/g, '')}`} className="mt-3 flex items-center gap-2 text-sm font-bold text-brand-600">
+              <Icon name="phone" className="size-4" /> Llamar al restaurante
+            </a>
+          )}
         </div>
 
         <a href="#/" className="block rounded-2xl bg-ink py-4 text-center font-bold text-white">
@@ -146,87 +222,35 @@ export default function OrderTracking({ id }) {
   )
 }
 
-function ScheduledHero({ order, arrival }) {
-  return (
-    <div className="mt-4 rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-600 px-3 py-1 text-xs font-bold">
-        <Icon name="calendar" className="size-3.5" /> Pedido programado
-      </span>
-      <p className="mt-3 font-display text-3xl font-black italic tracking-tight sm:text-4xl">{slotLabel(arrival)}</p>
-      <p className="mt-2 text-sm text-white/70">
-        ¡Listo! {order.restaurantName} empezará a prepararlo 30 minutos antes y te avisaremos cuando el rider salga.
-      </p>
-      <img src="rider.png" alt="" className="mx-auto mt-4 w-40 animate-ride" />
-    </div>
-  )
-}
+function RiderCard({ order, delivered, onChange }) {
+  const toast = useToast()
+  const [busy, setBusy] = useState(null)
+  const rider = order.rider
+  const phone = rider?.phone?.replace(/\s/g, '')
 
-function DeliveryMap({ ride, stageIndex }) {
-  const pathRef = useRef(null)
-  const [pos, setPos] = useState({ x: 60, y: 250 })
+  const addTip = async (amount) => {
+    setBusy(amount)
+    try {
+      const res = await callFunction('add-tip', { token: order.token, amount })
+      if (res.checkout_url) return (window.location.href = res.checkout_url)
+      toast(`${rider?.name ?? 'Tu rider'} dice: ¡mil gracias! 🐰💨`)
+      onChange()
+    } catch (e) {
+      toast(e.message, 'error')
+    } finally {
+      setBusy(null)
+    }
+  }
 
-  useEffect(() => {
-    const p = pathRef.current
-    if (!p) return
-    const pt = p.getPointAtLength(p.getTotalLength() * ride)
-    setPos({ x: pt.x, y: pt.y })
-  }, [ride])
+  const rate = async (n) => {
+    const { error } = await supabase.rpc('rate_order', { p_token: order.token, p_rating: n })
+    if (error) toast(error.message, 'error')
+    else {
+      toast('¡Gracias por tu valoración!')
+      onChange()
+    }
+  }
 
-  return (
-    <div className="relative mt-4 overflow-hidden rounded-3xl bg-neutral-800 ring-1 ring-white/10">
-      <svg viewBox="0 0 400 300" className="block h-auto w-full">
-        <defs>
-          <pattern id="blocks" width="50" height="50" patternUnits="userSpaceOnUse">
-            <rect width="50" height="50" fill="#262626" />
-            <rect x="6" y="6" width="38" height="38" rx="6" fill="#2f2f2f" />
-          </pattern>
-        </defs>
-        <rect width="400" height="300" fill="url(#blocks)" />
-        <path d="M0 220 C 120 200 200 280 400 230 L 400 300 L 0 300 Z" fill="#0c4a6e" opacity="0.55" />
-        <path d="M 0 150 L 400 120" stroke="#3a3a3a" strokeWidth="14" />
-        <path d="M 200 0 L 230 300" stroke="#3a3a3a" strokeWidth="12" />
-        <path d={ROUTE} stroke="#ffffff" strokeOpacity="0.15" strokeWidth="10" fill="none" strokeLinecap="round" />
-        <path
-          ref={pathRef}
-          d={ROUTE}
-          stroke="#E30613"
-          strokeWidth="5"
-          fill="none"
-          strokeLinecap="round"
-          strokeDasharray="10 8"
-          className={stageIndex >= 2 ? '' : 'opacity-40'}
-        />
-        {/* Restaurante */}
-        <g transform="translate(60 250)">
-          <circle r="16" fill="#fff" />
-          <text textAnchor="middle" dy="6" fontSize="16">🍽️</text>
-        </g>
-        {/* Casa */}
-        <g transform="translate(340 50)">
-          <circle r="18" fill="#E30613" />
-          <circle r="26" fill="#E30613" opacity="0.25" className="animate-ping" style={{ transformOrigin: 'center' }} />
-          <text textAnchor="middle" dy="6" fontSize="16">🏠</text>
-        </g>
-        {/* Rider */}
-        {stageIndex >= 2 && (
-          <g style={{ transform: `translate(${pos.x}px, ${pos.y}px)`, transition: 'transform 0.5s linear' }}>
-            <circle r="22" fill="#fff" stroke="#E30613" strokeWidth="3" />
-            <image href="rider.png" x="-20" y="-20" width="40" height="40" />
-          </g>
-        )}
-      </svg>
-      {stageIndex < 2 && (
-        <div className="absolute inset-x-4 bottom-4 flex items-center gap-2 rounded-2xl bg-black/60 px-4 py-2.5 text-sm font-semibold backdrop-blur">
-          <span className="size-2 animate-pulse rounded-full bg-brand-500" />
-          {stageIndex === 0 ? 'Confirmando con el restaurante…' : 'Cocinando tu pedido 🔥'}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function RiderCard({ order, delivered, active, onTip, onRate }) {
-  const [thanks, setThanks] = useState(false)
   return (
     <div className="rounded-3xl bg-white p-5 ring-1 ring-neutral-200/70">
       <div className="flex items-center gap-3">
@@ -234,60 +258,47 @@ function RiderCard({ order, delivered, active, onTip, onRate }) {
           <img src="rider.png" alt="" className="w-12" />
         </span>
         <div className="flex-1">
-          <p className="font-extrabold">{active ? 'Yeray' : 'Asignando rider…'}</p>
-          <p className="flex items-center gap-1 text-xs text-neutral-500">
-            {active ? (
-              <>
-                <Icon name="star" className="size-3.5 text-amber-400" /> 4,9 · Moto eléctrica · 2.340 entregas
-              </>
-            ) : (
-              'Buscamos al rider más cercano'
-            )}
-          </p>
+          <p className="font-extrabold">{rider ? rider.name : 'Buscando rider…'}</p>
+          <p className="text-xs text-neutral-500">{rider ? 'Tu repartidor rabeat' : 'Te avisaremos por email cuando tengamos rider'}</p>
         </div>
-        {active && !delivered && (
+        {rider && phone && !delivered && (
           <div className="flex gap-2">
-            <button className="grid size-10 place-items-center rounded-full bg-neutral-100" aria-label="Chat con el rider">
+            <a href={`sms:${phone}`} className="grid size-10 place-items-center rounded-full bg-neutral-100" aria-label="Enviar mensaje al rider">
               <Icon name="chat" className="size-4" />
-            </button>
-            <button className="grid size-10 place-items-center rounded-full bg-brand-600 text-white" aria-label="Llamar al rider">
+            </a>
+            <a href={`tel:${phone}`} className="grid size-10 place-items-center rounded-full bg-brand-600 text-white" aria-label="Llamar al rider">
               <Icon name="phone" className="size-4" />
-            </button>
+            </a>
           </div>
         )}
       </div>
 
       <div className="mt-4 rounded-2xl bg-brand-50 p-4">
-        <p className="text-sm font-bold text-brand-800">
-          {order.tip > 0 ? `Has dejado ${money(order.tip)} de propina. ¡Gracias! 🧡` : 'Aún no has dejado propina'}
-        </p>
+        <p className="text-sm font-bold text-brand-800">{Number(order.tip) > 0 ? `Has dejado ${money(order.tip)} de propina. ¡Gracias! 🧡` : 'Aún no has dejado propina'}</p>
         <p className="mt-0.5 text-xs text-brand-700/80">
           {delivered ? '¿Ha ido todo bien? Puedes añadir algo más.' : 'Puedes añadir más propina en cualquier momento.'}
+          {order.payment_method === 'cash' && ' Pedido en efectivo: entrégala al rider junto con el pago.'}
         </p>
         <div className="mt-3 flex gap-2">
           {[1, 2, 3].map((t) => (
             <button
               key={t}
-              onClick={() => {
-                onTip(t)
-                setThanks(true)
-                setTimeout(() => setThanks(false), 1800)
-              }}
-              className="flex-1 rounded-full bg-white py-2 text-sm font-extrabold text-brand-700 ring-1 ring-brand-200 transition active:scale-95"
+              disabled={busy !== null}
+              onClick={() => addTip(t)}
+              className="flex flex-1 items-center justify-center gap-1 rounded-full bg-white py-2 text-sm font-extrabold text-brand-700 ring-1 ring-brand-200 transition active:scale-95 disabled:opacity-60"
             >
-              +{money(t).replace(',00', '')}
+              {busy === t ? <Spinner className="size-4" /> : `+${money(t).replace(',00', '')}`}
             </button>
           ))}
         </div>
-        {thanks && <p className="mt-2 animate-fade-in text-center text-xs font-bold text-brand-700">Yeray dice: ¡mil gracias! 🐰💨</p>}
       </div>
 
       {delivered && (
         <div className="mt-4 text-center">
-          <p className="text-sm font-bold">Valora tu pedido</p>
+          <p className="text-sm font-bold">{order.rating ? 'Tu valoración' : 'Valora tu pedido'}</p>
           <div className="mt-2 flex justify-center gap-1">
             {[1, 2, 3, 4, 5].map((n) => (
-              <button key={n} onClick={() => onRate(n)} aria-label={`${n} estrellas`} className="transition active:scale-90">
+              <button key={n} onClick={() => rate(n)} aria-label={`${n} estrellas`} className="transition active:scale-90">
                 <Icon name="star" className={`size-8 ${n <= (order.rating ?? 0) ? 'text-amber-400' : 'text-neutral-200'}`} />
               </button>
             ))}

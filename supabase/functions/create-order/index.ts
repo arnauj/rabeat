@@ -1,0 +1,198 @@
+// Calcula (dry_run) o crea un pedido. El servidor recalcula todos los importes.
+import { adminClient, currentUser } from '../_shared/db.ts'
+import { handle, HttpError, json, siteUrl, trackingUrl } from '../_shared/http.ts'
+import { getStatus, isValidSlot } from '../_shared/hours.js'
+import { customerPrice, deliveryDistanceKm, inDeliveryRange, quote } from '../_shared/pricing.js'
+import { cents, stripe, stripeEnabled } from '../_shared/stripe.ts'
+import { notifyOrder } from '../_shared/notify.ts'
+
+type Body = {
+  dry_run?: boolean
+  restaurant_id: string
+  items: { dish_id: string; qty: number; note?: string }[]
+  address: { street: string; details?: string; notes?: string; lat: number; lng: number }
+  customer?: { name: string; email: string; phone: string }
+  scheduled_for?: string | null
+  tip?: number
+  promo_code?: string
+  payment_method?: 'card' | 'cash'
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
+
+function orderCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const bytes = crypto.getRandomValues(new Uint8Array(6))
+  return 'RB' + [...bytes].map((b) => alphabet[b % alphabet.length]).join('')
+}
+
+Deno.serve(
+  handle(async (req) => {
+    if (req.method !== 'POST') throw new HttpError(405, 'Método no permitido')
+    const body = (await req.json()) as Body
+    const db = adminClient()
+    const user = await currentUser(req)
+
+    // --- Datos de referencia
+    const [{ data: settings }, { data: restaurant }] = await Promise.all([
+      db.from('settings').select('*').eq('id', 1).single(),
+      db.from('restaurants').select('*, opening_hours(*)').eq('id', body.restaurant_id).single(),
+    ])
+    if (!settings) throw new Error('Faltan los ajustes de la plataforma')
+    if (!restaurant || !restaurant.active) throw new HttpError(404, 'Restaurante no disponible')
+    if (!restaurant.accepting_orders) throw new HttpError(409, 'El restaurante no acepta pedidos ahora mismo')
+
+    const lines = (body.items ?? []).filter((i) => i && i.qty > 0)
+    if (!lines.length) throw new HttpError(400, 'La cesta está vacía')
+    if (lines.some((i) => !Number.isInteger(i.qty) || i.qty > 50)) throw new HttpError(400, 'Cantidad no válida')
+
+    const { data: dishes } = await db
+      .from('dishes')
+      .select('id, name, price, available, restaurant_id')
+      .in('id', lines.map((i) => i.dish_id))
+    const byId = new Map((dishes ?? []).map((d) => [d.id, d]))
+    const unavailable = lines.filter((i) => {
+      const d = byId.get(i.dish_id)
+      return !d || !d.available || d.restaurant_id !== restaurant.id
+    })
+    if (unavailable.length) throw new HttpError(409, 'Algún plato de tu cesta ya no está disponible')
+
+    // --- Distancia y envío
+    const point = { lat: Number(body.address?.lat), lng: Number(body.address?.lng) }
+    if (!Number.isFinite(point.lat) || !Number.isFinite(point.lng)) throw new HttpError(400, 'Indica la dirección de entrega en el mapa')
+    const km = deliveryDistanceKm(restaurant, point)
+    if (km == null) throw new HttpError(409, 'El restaurante aún no tiene ubicación configurada')
+    if (!inDeliveryRange(km, settings))
+      throw new HttpError(409, `Tu dirección está a ${km.toFixed(1)} km: el máximo de reparto es ${settings.delivery_max_km} km`)
+
+    // --- Promoción
+    let promo = null
+    const code = body.promo_code?.trim().toUpperCase()
+    if (code) {
+      const { data } = await db.from('promo_codes').select('*').eq('code', code).maybeSingle()
+      const valid =
+        data && data.active && (!data.expires_at || new Date(data.expires_at) > new Date()) && (data.max_uses == null || data.uses < data.max_uses)
+      if (!valid) throw new HttpError(400, 'Código promocional no válido o caducado')
+      promo = data
+    }
+
+    const items = lines.map((i) => ({ ...i, base_price: Number(byId.get(i.dish_id)!.price), name: byId.get(i.dish_id)!.name }))
+    const q = quote({ items, settings, km, tip: body.tip ?? 0, promo })
+    if (promo && q.discount === 0) throw new HttpError(400, `Este código requiere un pedido mínimo de ${promo.min_subtotal} €`)
+    const minOk = q.subtotal >= Number(restaurant.min_order)
+
+    // --- Horario
+    const now = new Date()
+    const hours = restaurant.opening_hours ?? []
+    const status = getStatus(hours, now, settings.timezone)
+    let scheduledFor: Date | null = null
+    if (body.scheduled_for) {
+      scheduledFor = new Date(body.scheduled_for)
+      if (!isValidSlot(hours, scheduledFor, now, settings.timezone))
+        throw new HttpError(409, 'La franja elegida ya no está disponible, elige otra')
+    } else if (!status.open && !body.dry_run) {
+      throw new HttpError(409, 'El restaurante está cerrado: programa el pedido para cuando abra')
+    }
+
+    if (body.dry_run) return json({ quote: q, distance_km: km, min_order_ok: minOk, open: status.open, promo: promo?.code ?? null })
+
+    // --- Validación del cliente
+    if (!minOk) throw new HttpError(400, `El pedido mínimo es de ${restaurant.min_order} €`)
+    const customer = body.customer
+    if (!customer?.name?.trim() || !EMAIL_RE.test(customer?.email ?? '') || (customer?.phone ?? '').replace(/\D/g, '').length < 9)
+      throw new HttpError(400, 'Revisa tu nombre, email y teléfono')
+    if (!body.address.street?.trim()) throw new HttpError(400, 'Indica la calle y el número')
+    const method = body.payment_method === 'cash' ? 'cash' : stripeEnabled() ? 'card' : 'test'
+
+    // --- Alta del pedido
+    const { data: order, error } = await db
+      .from('orders')
+      .insert({
+        code: orderCode(),
+        restaurant_id: restaurant.id,
+        customer_id: user?.id ?? null,
+        customer_name: customer.name.trim(),
+        customer_email: customer.email.trim().toLowerCase(),
+        customer_phone: customer.phone.trim(),
+        address: { street: body.address.street.trim(), details: body.address.details?.trim() ?? '', notes: body.address.notes?.trim() ?? '' },
+        lat: point.lat,
+        lng: point.lng,
+        distance_km: km,
+        scheduled_for: scheduledFor?.toISOString() ?? null,
+        status: method === 'cash' ? 'confirmed' : 'pending_payment',
+        payment_method: method,
+        promo_code: promo?.code ?? null,
+        ...q,
+      })
+      .select()
+      .single()
+    if (error) throw error
+
+    const { error: itemsError } = await db.from('order_items').insert(
+      items.map((i) => ({
+        order_id: order.id,
+        dish_id: i.dish_id,
+        name: i.name,
+        base_price: i.base_price,
+        unit_price: customerPrice(i.base_price, q.markup_pct),
+        qty: i.qty,
+        note: (i.note ?? '').slice(0, 140),
+      })),
+    )
+    if (itemsError) throw itemsError
+
+    // Efectivo: confirmado directamente
+    if (method === 'cash') {
+      await db.rpc('on_order_confirmed', { p_order: order.id })
+      await notifyOrder(order.id, 'confirmed')
+      return json({ token: order.tracking_token, code: order.code })
+    }
+
+    // Pasarela pendiente de configurar: pago simulado
+    if (method === 'test') {
+      await db.rpc('mark_order_paid', { p_order: order.id, p_session: 'test' })
+      await notifyOrder(order.id, 'confirmed')
+      return json({ token: order.tracking_token, code: order.code, test_payment: true })
+    }
+
+    // Stripe Checkout
+    const lineItems: Record<string, unknown> = {}
+    const add = (name: string, amount: number, quantity = 1) => {
+      lineItems[Object.keys(lineItems).length] = {
+        price_data: { currency: 'eur', unit_amount: cents(amount), product_data: { name } },
+        quantity,
+      }
+    }
+    items.forEach((i) => add(i.name, customerPrice(i.base_price, q.markup_pct), i.qty))
+    if (q.delivery_fee > 0) add(`Envío (${km.toFixed(1)} km)`, q.delivery_fee)
+    if (q.tip > 0) add('Propina para tu repartidor', q.tip)
+
+    let discounts
+    if (q.discount > 0) {
+      const coupon = await stripe<{ id: string }>('coupons', {
+        amount_off: cents(q.discount),
+        currency: 'eur',
+        duration: 'once',
+        max_redemptions: 1,
+        name: `Promo ${promo!.code}`,
+      })
+      discounts = { 0: { coupon: coupon.id } }
+    }
+
+    const session = await stripe<{ id: string; url: string }>('checkout/sessions', {
+      mode: 'payment',
+      locale: 'es',
+      customer_email: order.customer_email,
+      client_reference_id: order.id,
+      metadata: { type: 'order', order_id: order.id },
+      payment_intent_data: { metadata: { order_id: order.id, code: order.code } },
+      line_items: lineItems,
+      discounts,
+      expires_at: Math.floor(Date.now() / 1000) + 31 * 60,
+      success_url: `${trackingUrl(order.tracking_token)}?pago=ok`,
+      cancel_url: `${siteUrl()}#/pago?cancelado=${order.code}`,
+    })
+    await db.from('orders').update({ stripe_session_id: session.id }).eq('id', order.id)
+    return json({ token: order.tracking_token, code: order.code, checkout_url: session.url })
+  }),
+)

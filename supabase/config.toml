@@ -1,0 +1,18 @@
+# Configuración del proyecto Supabase (CLI). Las funciones validan el usuario por su cuenta,
+# porque las claves publicables nuevas (sb_publishable_…) no son JWT.
+project_id = "dodvqylxgqxxfgsakalo"
+
+[functions.create-order]
+verify_jwt = false
+[functions.stripe-webhook]
+verify_jwt = false
+[functions.confirm-payment]
+verify_jwt = false
+[functions.add-tip]
+verify_jwt = false
+[functions.notify]
+verify_jwt = false
+[functions.admin-users]
+verify_jwt = false
+[functions.public-config]
+verify_jwt = false

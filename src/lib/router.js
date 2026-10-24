@@ -1,18 +1,21 @@
 import { useEffect, useState } from 'react'
 
-const parse = () => window.location.hash.replace(/^#\/?/, '').split('/').filter(Boolean)
+const parse = () => {
+  const [path, query = ''] = window.location.hash.replace(/^#\/?/, '').split('?')
+  return { parts: path.split('/').filter(Boolean), query: new URLSearchParams(query) }
+}
 
 export function useRoute() {
-  const [parts, setParts] = useState(parse)
+  const [route, setRoute] = useState(parse)
   useEffect(() => {
     const onChange = () => {
-      setParts(parse())
+      setRoute(parse())
       window.scrollTo({ top: 0 })
     }
     window.addEventListener('hashchange', onChange)
     return () => window.removeEventListener('hashchange', onChange)
   }, [])
-  return parts
+  return route
 }
 
 export const navigate = (path) => {

@@ -1,3 +1,7 @@
 node_modules
 dist
 .DS_Store
+.env.local
+supabase/.env
+supabase/users.local.json
+supabase/.temp

@@ -6,9 +6,19 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test scripts/test-logic.mjs && bash scripts/test-db.sh",
+    "test:logic": "node --test scripts/test-logic.mjs",
+    "test:db": "bash scripts/test-db.sh",
+    "seed:generate": "node scripts/gen-seed.mjs",
+    "supabase:setup": "node scripts/supabase-setup.mjs",
+    "supabase:secrets": "node scripts/supabase-setup.mjs secrets auth",
+    "supabase:functions": "node scripts/supabase-setup.mjs functions",
+    "supabase:migrate": "node scripts/supabase-setup.mjs migrations"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.49.4",
+    "leaflet": "^1.9.4",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

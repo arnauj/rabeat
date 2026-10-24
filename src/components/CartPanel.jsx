@@ -1,15 +1,24 @@
+import { useEffect } from 'react'
 import Icon from './Icon.jsx'
-import { QtyStepper, SafeImg, useNow } from './ui.jsx'
+import { QtyStepper, SafeImg, useNow, useRestaurantStatus } from './ui.jsx'
 import { useCart } from '../lib/cart.jsx'
+import { useAsync } from '../lib/useAsync.js'
+import { getRestaurant } from '../lib/data.js'
 import { money } from '../lib/format.js'
-import { formatHour, getStatus, relativeDay } from '../lib/time.js'
+import { formatHour, relativeDay } from '../lib/time.js'
 
 export default function CartPanel({ compact = false }) {
   const cart = useCart()
   const now = useNow()
-  const r = cart.restaurant
+  const { data: r } = useAsync(() => (cart.restaurantId ? getRestaurant(cart.restaurantId, { byId: true }) : null), [cart.restaurantId])
+  const status = useRestaurantStatus(r, now)
 
-  if (!r || cart.items.length === 0)
+  useEffect(() => {
+    if (r) cart.sync(r.dishes)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [r])
+
+  if (!cart.restaurant || cart.items.length === 0)
     return (
       <div className="rounded-3xl bg-white p-6 text-center ring-1 ring-neutral-200/70">
         <img src="rider.png" alt="" className="mx-auto w-28 opacity-90" />
@@ -18,16 +27,16 @@ export default function CartPanel({ compact = false }) {
       </div>
     )
 
-  const status = getStatus(r, now)
-  const missing = Math.max(0, r.minOrder - cart.subtotal)
+  const missing = r ? Math.max(0, Number(r.min_order) - cart.subtotal) : 0
+  const blocked = missing > 0 || (r && !r.accepting_orders)
 
   return (
     <div className="overflow-hidden rounded-3xl bg-white ring-1 ring-neutral-200/70">
       <div className="flex items-center justify-between gap-3 border-b border-neutral-100 p-4">
         <div className="min-w-0">
           <p className="text-[11px] font-bold tracking-wide text-neutral-500 uppercase">Tu pedido en</p>
-          <a href={`#/r/${r.id}`} className="block truncate font-extrabold hover:text-brand-600">
-            {r.name}
+          <a href={`#/r/${cart.restaurant.slug}`} className="block truncate font-extrabold hover:text-brand-600">
+            {cart.restaurant.name}
           </a>
         </div>
         <button onClick={cart.clear} className="text-sm font-semibold text-neutral-500 hover:text-brand-600">
@@ -42,7 +51,7 @@ export default function CartPanel({ compact = false }) {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold">{i.name}</p>
               {i.note && <p className="truncate text-xs text-neutral-500">“{i.note}”</p>}
-              <p className="text-sm font-semibold text-neutral-700">{money(i.price * i.qty)}</p>
+              <p className="text-sm font-semibold text-neutral-700">{money(cart.priceOf(i.basePrice) * i.qty)}</p>
             </div>
             <QtyStepper size="sm" value={i.qty} onChange={(q) => cart.setQty(i.key, q)} />
           </li>
@@ -50,22 +59,23 @@ export default function CartPanel({ compact = false }) {
       </ul>
 
       <div className="space-y-3 border-t border-neutral-100 p-4">
-        {!status.open && (
+        {r && !r.accepting_orders && <p className="rounded-2xl bg-neutral-900 p-3 text-xs text-white">El restaurante ha pausado los pedidos temporalmente.</p>}
+        {r && r.accepting_orders && !status.open && (
           <p className="flex items-start gap-2 rounded-2xl bg-neutral-900 p-3 text-xs text-white">
             <Icon name="calendar" className="mt-0.5 size-4 shrink-0 text-brand-400" />
             <span>
               Cerrado ahora. Programa la entrega
-              {status.opensAt && ` a partir de ${relativeDay(status.opensAt, now)} a las ${formatHour(status.opensAt)}`}.
+              {status.opensAt && ` a partir de ${relativeDay(status.opensAt, now, status.tz)} a las ${formatHour(status.opensAt, status.tz)}`}.
             </span>
           </p>
         )}
         {missing > 0 && (
           <div>
             <div className="h-1.5 overflow-hidden rounded-full bg-neutral-100">
-              <div className="h-full rounded-full bg-brand-600 transition-all" style={{ width: `${(cart.subtotal / r.minOrder) * 100}%` }} />
+              <div className="h-full rounded-full bg-brand-600 transition-all" style={{ width: `${(cart.subtotal / Number(r.min_order)) * 100}%` }} />
             </div>
             <p className="mt-1.5 text-xs font-medium text-neutral-500">
-              Añade {money(missing)} más para llegar al pedido mínimo ({money(r.minOrder)}).
+              Añade {money(missing)} más para llegar al pedido mínimo ({money(r.min_order)}).
             </p>
           </div>
         )}
@@ -74,12 +84,10 @@ export default function CartPanel({ compact = false }) {
           <span className="font-bold">{money(cart.subtotal)}</span>
         </div>
         <a
-          href={missing > 0 ? undefined : '#/pago'}
-          aria-disabled={missing > 0}
+          href={blocked ? undefined : '#/pago'}
+          aria-disabled={blocked}
           className={`flex items-center justify-center gap-2 rounded-2xl py-3.5 font-bold transition ${
-            missing > 0
-              ? 'pointer-events-none bg-neutral-200 text-neutral-400'
-              : 'bg-brand-600 text-white shadow-lg shadow-brand-600/30 hover:bg-brand-700 active:scale-[0.98]'
+            blocked ? 'pointer-events-none bg-neutral-200 text-neutral-400' : 'bg-brand-600 text-white shadow-lg shadow-brand-600/30 hover:bg-brand-700 active:scale-[0.98]'
           }`}
         >
           {status.open ? 'Ir a pagar' : 'Programar y pagar'}

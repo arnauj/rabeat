@@ -1,61 +1,115 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { SafeImg, useNow } from '../components/ui.jsx'
-import { DEFAULT_ADDRESS } from '../components/TopBar.jsx'
+import { Field, Loading, SafeImg, useNow, useRestaurantStatus, useToast } from '../components/ui.jsx'
 import { useCart } from '../lib/cart.jsx'
-import { money, PROMO_CODES, SERVICE_FEE } from '../lib/format.js'
-import { deliverySlots, formatHour, getStatus, groupSlotsByDay, slotLabel } from '../lib/time.js'
+import { useAuth } from '../lib/auth.jsx'
+import { useLocation } from '../lib/location.jsx'
+import { useSettings } from '../lib/settings.jsx'
+import { useAsync } from '../lib/useAsync.js'
+import { getRestaurant } from '../lib/data.js'
+import { callFunction } from '../lib/supabase.js'
+import { km as fmtKm, money } from '../lib/format.js'
+import { deliverySlots, formatHour, groupSlotsByDay, slotLabel } from '../lib/time.js'
+import { deliveryDistanceKm, etaMinutes, inDeliveryRange, quote } from '../lib/pricing.js'
 import { goBack, navigate } from '../lib/router.js'
 
 const TIP_OPTIONS = [0, 1, 2, 3, 5]
+const PENDING_KEY = 'rabeat:pendingCheckout'
 
-const PAYMENTS = [
-  { id: 'card', label: 'Tarjeta', icon: 'card' },
-  { id: 'bizum', label: 'Bizum', icon: 'phone' },
-  { id: 'wallet', label: 'Apple / Google Pay', icon: 'wallet' },
-  { id: 'cash', label: 'Efectivo', icon: 'cash' },
-]
-
-const digits = (s) => s.replace(/\D/g, '')
-
-export default function Checkout() {
+export default function Checkout({ query }) {
   const cart = useCart()
   const now = useNow()
-  const r = cart.restaurant
+  const toast = useToast()
+  const { profile } = useAuth()
+  const { settings, config } = useSettings()
+  const { address, setAddress, openPicker } = useLocation()
+  const { data: r, loading } = useAsync(() => (cart.restaurantId ? getRestaurant(cart.restaurantId, { byId: true }) : null), [cart.restaurantId])
+  const status = useRestaurantStatus(r, now)
+  const tz = settings.timezone
 
-  const status = r ? getStatus(r, now) : { open: false }
-  const slots = useMemo(() => (r ? deliverySlots(r, now) : []), [r, now])
-  const days = useMemo(() => groupSlotsByDay(slots, now), [slots, now])
+  // Vuelta desde Stripe tras cancelar: recupera la cesta
+  useEffect(() => {
+    const cancelled = query?.get('cancelado')
+    if (!cancelled) return
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(PENDING_KEY))
+      if (saved?.code === cancelled && !cart.items.length) cart.restore(saved.cart)
+      sessionStorage.removeItem(PENDING_KEY)
+      toast('Pago cancelado. Tu cesta sigue aquí.', 'error')
+    } catch {
+      /* nada que recuperar */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const [mode, setMode] = useState(status.open ? 'asap' : 'scheduled')
+  const slots = useMemo(() => (r ? deliverySlots(r.opening_hours, now, 3, tz) : []), [r, now, tz])
+  const days = useMemo(() => groupSlotsByDay(slots, now, tz), [slots, now, tz])
+
+  const [mode, setMode] = useState('asap')
   const [dayKey, setDayKey] = useState(null)
   const [slot, setSlot] = useState(null)
-
-  const [address, setAddress] = useState({ street: DEFAULT_ADDRESS, details: '', notes: '', phone: '612 345 678' })
+  const [customer, setCustomer] = useState({ name: '', email: '', phone: '' })
   const [payment, setPayment] = useState('card')
-  const [cardData, setCardData] = useState({ number: '', expiry: '', cvc: '', name: '' })
-  const [bizum, setBizum] = useState('')
-
   const [tip, setTip] = useState(2)
   const [customTip, setCustomTip] = useState('')
   const [isCustomTip, setIsCustomTip] = useState(false)
-
   const [promoInput, setPromoInput] = useState('')
-  const [promo, setPromo] = useState(null)
-  const [promoError, setPromoError] = useState('')
-
+  const [promo, setPromo] = useState('')
+  const [serverQuote, setServerQuote] = useState(null)
+  const [quoteError, setQuoteError] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const [paying, setPaying] = useState(false)
+  const [payError, setPayError] = useState('')
+
+  useEffect(() => {
+    if (profile) setCustomer((c) => ({ name: c.name || profile.full_name, email: c.email || profile.email, phone: c.phone || profile.phone }))
+  }, [profile])
+
+  useEffect(() => {
+    if (r && !status.open) setMode('scheduled')
+  }, [r, status.open])
 
   useEffect(() => {
     if (attempt) document.querySelector('[data-error="true"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   }, [attempt])
 
-  useEffect(() => {
-    if (!status.open) setMode('scheduled')
-  }, [status.open])
+  const tipAmount = isCustomTip ? Math.max(0, Math.min(Number(settings.max_tip), Number(customTip.replace(',', '.')) || 0)) : tip
+  const km = r && address ? deliveryDistanceKm(r, address) : null
+  const inRange = km != null && inDeliveryRange(km, settings)
 
+  // Presupuesto del servidor (valida promo, distancia y precios reales)
+  const items = useMemo(() => cart.items.map((i) => ({ dish_id: i.dishId, qty: i.qty, note: i.note })), [cart.items])
+  const reqId = useRef(0)
+  useEffect(() => {
+    if (!r || !address || !items.length) return
+    const id = ++reqId.current
+    const t = setTimeout(async () => {
+      try {
+        const res = await callFunction('create-order', {
+          dry_run: true,
+          restaurant_id: r.id,
+          items,
+          address,
+          tip: tipAmount,
+          promo_code: promo || undefined,
+          scheduled_for: mode === 'scheduled' && slot ? slot.toISOString() : null,
+        })
+        if (id === reqId.current) {
+          setServerQuote(res)
+          setQuoteError('')
+        }
+      } catch (e) {
+        if (id !== reqId.current) return
+        setServerQuote(null)
+        setQuoteError(e.message)
+        if (promo && /código/i.test(e.message)) setPromo('')
+      }
+    }, 350)
+    return () => clearTimeout(t)
+  }, [r, address, items, tipAmount, promo, mode, slot])
+
+  if (loading && !r) return <Loading />
   if (!r || cart.items.length === 0)
     return (
       <div className="grid min-h-dvh place-items-center px-6 text-center">
@@ -70,64 +124,51 @@ export default function Checkout() {
     )
 
   const activeDay = days.find((d) => d.key === dayKey) ?? days[0]
-  const tipAmount = isCustomTip ? Math.max(0, Number(customTip.replace(',', '.')) || 0) : tip
-  const discount = promo ? PROMO_CODES[promo].apply(cart.subtotal) : 0
-  const total = cart.subtotal + r.deliveryFee + SERVICE_FEE + tipAmount - discount
+  const local = quote({ items: cart.items.map((i) => ({ base_price: i.basePrice, qty: i.qty })), settings, km: inRange ? km : null, tip: tipAmount })
+  const q = serverQuote?.quote ?? local
+  const [etaA, etaB] = etaMinutes(r, km)
+  const testMode = config?.payments !== 'stripe'
 
   const errors = {
+    address: !address ? 'Indica la dirección de entrega' : !inRange ? `Fuera de la zona de reparto (${fmtKm(km)} · máx. ${fmtKm(settings.delivery_max_km)})` : null,
     slot: mode === 'scheduled' && !slot ? 'Elige una franja de entrega' : null,
-    street: address.street.trim().length < 5 ? 'Indica la dirección de entrega' : null,
-    card:
-      payment === 'card' &&
-      (digits(cardData.number).length !== 16 ||
-        !/^(0[1-9]|1[0-2])\/\d{2}$/.test(cardData.expiry) ||
-        digits(cardData.cvc).length !== 3)
-        ? 'Revisa los datos de la tarjeta'
+    customer:
+      !customer.name.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(customer.email) || customer.phone.replace(/\D/g, '').length < 9
+        ? 'Completa tu nombre, un email válido y un teléfono de 9 cifras'
         : null,
-    bizum: payment === 'bizum' && digits(bizum).length !== 9 ? 'Introduce un móvil de 9 cifras' : null,
+    min: q.subtotal < Number(r.min_order) ? `El pedido mínimo es ${money(r.min_order)}` : null,
   }
-  const hasErrors = Object.values(errors).some(Boolean)
+  const hasErrors = Object.values(errors).some(Boolean) || !r.accepting_orders
 
-  const applyPromo = () => {
-    const code = promoInput.trim().toUpperCase()
-    if (PROMO_CODES[code]) {
-      setPromo(code)
-      setPromoError('')
-    } else {
-      setPromo(null)
-      setPromoError('Código no válido. Prueba con RABEAT10')
-    }
-  }
-
-  const pay = () => {
+  const pay = async () => {
     setSubmitted(true)
-    if (hasErrors) {
-      setAttempt((n) => n + 1)
-      return
-    }
+    setPayError('')
+    if (hasErrors) return setAttempt((n) => n + 1)
     setPaying(true)
-    setTimeout(() => {
-      const id = `RB${Date.now().toString(36).toUpperCase().slice(-6)}`
-      cart.placeOrder({
-        id,
-        restaurantId: r.id,
-        restaurantName: r.name,
-        cover: r.cover,
-        items: cart.items,
-        subtotal: cart.subtotal,
-        deliveryFee: r.deliveryFee,
-        serviceFee: SERVICE_FEE,
-        tip: Math.round(tipAmount * 100) / 100,
-        discount,
-        total,
+    try {
+      const res = await callFunction('create-order', {
+        restaurant_id: r.id,
+        items,
         address,
-        payment: PAYMENTS.find((p) => p.id === payment).label,
-        scheduledFor: mode === 'scheduled' ? slot.toISOString() : null,
-        createdAt: new Date().toISOString(),
-        eta: r.eta,
+        customer,
+        tip: tipAmount,
+        promo_code: promo || undefined,
+        scheduled_for: mode === 'scheduled' ? slot.toISOString() : null,
+        payment_method: payment,
       })
-      navigate(`/pedido/${id}`)
-    }, 1400)
+      cart.rememberOrder({ token: res.token, code: res.code, restaurant: r.name, created_at: new Date().toISOString() })
+      if (res.checkout_url) {
+        sessionStorage.setItem(PENDING_KEY, JSON.stringify({ code: res.code, cart: { items: cart.items, restaurant: cart.restaurant } }))
+        cart.clear()
+        window.location.href = res.checkout_url
+        return
+      }
+      cart.clear()
+      navigate(`/pedido/${res.token}`)
+    } catch (e) {
+      setPayError(e.message)
+      setPaying(false)
+    }
   }
 
   return (
@@ -149,8 +190,34 @@ export default function Checkout() {
 
       <div className="mx-auto max-w-5xl px-4 py-5 sm:px-6 lg:grid lg:grid-cols-[1fr_380px] lg:gap-8">
         <main className="space-y-4">
-          {/* Entrega */}
-          <Card title="¿Cuándo lo quieres?" icon="clock" error={submitted && errors.slot}>
+          <Section title="Dirección de entrega" icon="pin" error={submitted && errors.address}>
+            {address ? (
+              <div className="space-y-3">
+                <button onClick={openPicker} className="flex w-full items-center gap-3 rounded-2xl bg-neutral-100 p-3 text-left">
+                  <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-brand-600">
+                    <Icon name="pin" className="size-5" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-bold">{address.street}</span>
+                    <span className="block text-xs text-neutral-500">
+                      {km != null ? `${fmtKm(km)} del restaurante` : ''} · Cambiar
+                    </span>
+                  </span>
+                  <Icon name="edit" className="size-4 text-neutral-400" />
+                </button>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Piso, puerta" placeholder="2ºB" value={address.details ?? ''} onChange={(e) => setAddress({ ...address, details: e.target.value })} />
+                  <Field label="Indicaciones" placeholder="Portal verde…" value={address.notes ?? ''} onChange={(e) => setAddress({ ...address, notes: e.target.value })} />
+                </div>
+              </div>
+            ) : (
+              <button onClick={openPicker} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-ink py-4 font-bold text-white">
+                <Icon name="pin" className="size-5" /> Elegir dirección en el mapa
+              </button>
+            )}
+          </Section>
+
+          <Section title="¿Cuándo lo quieres?" icon="clock" error={submitted && errors.slot}>
             {!status.open && (
               <p className="mb-3 rounded-2xl bg-neutral-900 px-4 py-3 text-sm text-white">
                 🌙 {r.name} está cerrado ahora. Elige una hora dentro de su horario y te lo llevamos entonces.
@@ -162,18 +229,17 @@ export default function Checkout() {
                 disabled={!status.open}
                 onClick={() => setMode('asap')}
                 title="Lo antes posible"
-                subtitle={status.open ? `${r.eta[0]}–${r.eta[1]} min` : 'No disponible'}
+                subtitle={status.open ? `${etaA}–${etaB} min` : 'No disponible'}
                 icon="bolt"
               />
               <Choice
                 active={mode === 'scheduled'}
                 onClick={() => setMode('scheduled')}
                 title="Programar"
-                subtitle={slot && mode === 'scheduled' ? slotLabel(slot, now) : 'Elige día y hora'}
+                subtitle={slot && mode === 'scheduled' ? slotLabel(slot, now, tz) : 'Elige día y hora'}
                 icon="calendar"
               />
             </div>
-
             {mode === 'scheduled' && (
               <div className="mt-4">
                 {days.length === 0 ? (
@@ -185,14 +251,10 @@ export default function Checkout() {
                         <button
                           key={d.key}
                           onClick={() => setDayKey(d.key)}
-                          className={`shrink-0 rounded-2xl px-4 py-2 text-left transition ${
-                            activeDay?.key === d.key ? 'bg-ink text-white' : 'bg-neutral-100 text-neutral-700'
-                          }`}
+                          className={`shrink-0 rounded-2xl px-4 py-2 text-left transition ${activeDay?.key === d.key ? 'bg-ink text-white' : 'bg-neutral-100 text-neutral-700'}`}
                         >
                           <span className="block text-sm font-bold first-letter:uppercase">{d.label}</span>
-                          <span className="block text-[11px] opacity-70">
-                            {d.date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
-                          </span>
+                          <span className="block text-[11px] opacity-70">{d.date.toLocaleDateString('es-ES', { timeZone: tz, day: 'numeric', month: 'short' })}</span>
                         </button>
                       ))}
                     </div>
@@ -203,11 +265,9 @@ export default function Checkout() {
                           <button
                             key={s.toISOString()}
                             onClick={() => setSlot(s)}
-                            className={`rounded-xl py-2.5 text-sm font-bold tabular-nums ring-1 transition ${
-                              on ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white ring-neutral-200 hover:ring-neutral-400'
-                            }`}
+                            className={`rounded-xl py-2.5 text-sm font-bold tabular-nums ring-1 transition ${on ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white ring-neutral-200 hover:ring-neutral-400'}`}
                           >
-                            {formatHour(s)}
+                            {formatHour(s, tz)}
                           </button>
                         )
                       })}
@@ -216,34 +276,33 @@ export default function Checkout() {
                 )}
               </div>
             )}
-          </Card>
+          </Section>
 
-          {/* Dirección */}
-          <Card title="Dirección de entrega" icon="pin" error={submitted && errors.street}>
+          <Section title="Tus datos" icon="user" error={submitted && errors.customer}>
             <div className="grid gap-3">
-              <Field label="Calle y número" value={address.street} onChange={(v) => setAddress({ ...address, street: v })} />
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Piso, puerta" placeholder="2ºB" value={address.details} onChange={(v) => setAddress({ ...address, details: v })} />
-                <Field label="Teléfono" value={address.phone} onChange={(v) => setAddress({ ...address, phone: v })} inputMode="tel" />
+              <Field label="Nombre" autoComplete="name" value={customer.name} onChange={(e) => setCustomer({ ...customer, name: e.target.value })} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field label="Email (te enviamos la confirmación)" type="email" autoComplete="email" value={customer.email} onChange={(e) => setCustomer({ ...customer, email: e.target.value })} />
+                <Field label="Teléfono" type="tel" autoComplete="tel" value={customer.phone} onChange={(e) => setCustomer({ ...customer, phone: e.target.value })} />
               </div>
-              <Field
-                label="Indicaciones para el rider"
-                placeholder="Ej.: portal verde, llamar al timbre 2B"
-                value={address.notes}
-                onChange={(v) => setAddress({ ...address, notes: v })}
-              />
+              {!profile && (
+                <p className="text-xs text-neutral-500">
+                  Pides como invitado.{' '}
+                  <a href="#/entrar?next=/pago" className="font-bold text-brand-600">
+                    Inicia sesión
+                  </a>{' '}
+                  para guardar tu historial.
+                </p>
+              )}
             </div>
-          </Card>
+          </Section>
 
-          {/* Propina */}
           <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-brand-800 p-5 text-white shadow-lg shadow-brand-600/20">
-            <div className="pointer-events-none absolute inset-y-0 left-0 w-1/2 speed-lines opacity-50 [mask-image:linear-gradient(90deg,black,transparent)]" />
+            <div className="speed-lines pointer-events-none absolute inset-y-0 left-0 w-1/2 opacity-50 [mask-image:linear-gradient(90deg,black,transparent)]" />
             <img src="rider.png" alt="" className="pointer-events-none absolute top-2 -right-3 w-28 drop-shadow-lg sm:w-36" />
             <div className="relative pr-24 sm:pr-36">
               <h2 className="font-display text-xl font-extrabold italic">Propina para tu rider</h2>
-              <p className="mt-1 text-sm text-white/85">
-                El 100&nbsp;% va directo a quien te lleva el pedido. ¡Se agradece cada céntimo! 🐰
-              </p>
+              <p className="mt-1 text-sm text-white/85">El 100&nbsp;% va directo a quien te lleva el pedido. ¡Se agradece cada céntimo! 🐰</p>
             </div>
             <div className="relative z-10 mt-4 grid grid-cols-3 gap-2 sm:grid-cols-6">
               {TIP_OPTIONS.map((t) => {
@@ -255,20 +314,15 @@ export default function Checkout() {
                       setIsCustomTip(false)
                       setTip(t)
                     }}
-                    className={`rounded-full px-4 py-2 text-sm font-extrabold transition active:scale-95 ${
-                      on ? 'bg-white text-brand-700 shadow-lg' : 'bg-white/15 text-white ring-1 ring-white/30 hover:bg-white/25'
-                    }`}
+                    className={`rounded-full px-4 py-2 text-sm font-extrabold transition active:scale-95 ${on ? 'bg-white text-brand-700 shadow-lg' : 'bg-white/15 text-white ring-1 ring-white/30 hover:bg-white/25'}`}
                   >
                     {t === 0 ? 'Ahora no' : money(t).replace(',00', '')}
-                    {t === 2 && <span className="ml-1 text-[10px] font-bold opacity-70">★</span>}
                   </button>
                 )
               })}
               <button
                 onClick={() => setIsCustomTip(true)}
-                className={`rounded-full px-4 py-2 text-sm font-extrabold transition ${
-                  isCustomTip ? 'bg-white text-brand-700 shadow-lg' : 'bg-white/15 text-white ring-1 ring-white/30 hover:bg-white/25'
-                }`}
+                className={`rounded-full px-4 py-2 text-sm font-extrabold transition ${isCustomTip ? 'bg-white text-brand-700 shadow-lg' : 'bg-white/15 text-white ring-1 ring-white/30 hover:bg-white/25'}`}
               >
                 Otra
               </button>
@@ -289,85 +343,36 @@ export default function Checkout() {
             )}
           </section>
 
-          {/* Pago */}
-          <Card title="Método de pago" icon="card" error={submitted && (errors.card || errors.bizum)}>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {PAYMENTS.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setPayment(p.id)}
-                  className={`flex flex-col items-center gap-1.5 rounded-2xl px-2 py-3 text-xs font-bold ring-1 transition ${
-                    payment === p.id ? 'bg-brand-50 text-brand-700 ring-2 ring-brand-600' : 'bg-white ring-neutral-200'
-                  }`}
-                >
-                  <Icon name={p.icon} className="size-5" />
-                  {p.label}
-                </button>
-              ))}
+          <Section title="Método de pago" icon="card">
+            <div className="grid grid-cols-2 gap-2">
+              <PayOption active={payment === 'card'} onClick={() => setPayment('card')} icon="card" title="Tarjeta" subtitle="Apple Pay · Google Pay" />
+              <PayOption active={payment === 'cash'} onClick={() => setPayment('cash')} icon="cash" title="Efectivo" subtitle="Pagas al rider" />
             </div>
-
-            {payment === 'card' && (
-              <div className="mt-4 grid gap-3">
-                <Field
-                  label="Número de tarjeta"
-                  placeholder="1234 5678 9012 3456"
-                  inputMode="numeric"
-                  value={cardData.number}
-                  onChange={(v) =>
-                    setCardData({ ...cardData, number: digits(v).slice(0, 16).replace(/(\d{4})(?=\d)/g, '$1 ') })
-                  }
-                />
-                <div className="grid grid-cols-2 gap-3">
-                  <Field
-                    label="Caducidad"
-                    placeholder="MM/AA"
-                    inputMode="numeric"
-                    value={cardData.expiry}
-                    onChange={(v) => {
-                      const d = digits(v).slice(0, 4)
-                      setCardData({ ...cardData, expiry: d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d })
-                    }}
-                  />
-                  <Field
-                    label="CVC"
-                    placeholder="123"
-                    inputMode="numeric"
-                    value={cardData.cvc}
-                    onChange={(v) => setCardData({ ...cardData, cvc: digits(v).slice(0, 3) })}
-                  />
-                </div>
-                <p className="text-xs text-neutral-500">Demo: usa cualquier número de 16 cifras. No se realiza ningún cargo.</p>
-              </div>
-            )}
-            {payment === 'bizum' && (
-              <div className="mt-4">
-                <Field label="Móvil asociado a Bizum" placeholder="600 000 000" inputMode="tel" value={bizum} onChange={setBizum} />
-              </div>
-            )}
-            {payment === 'wallet' && (
-              <p className="mt-4 rounded-2xl bg-neutral-100 p-3 text-sm text-neutral-600">
-                Confirmarás el pago con tu dispositivo al pulsar «Pagar».
-              </p>
-            )}
+            {payment === 'card' &&
+              (testMode ? (
+                <p className="mt-4 rounded-2xl bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
+                  🧪 <b>Pasarela en modo pruebas.</b> La conexión con Stripe aún no está activada: el pago se simulará y el pedido se confirmará sin cargo.
+                </p>
+              ) : (
+                <p className="mt-4 rounded-2xl bg-neutral-100 p-3 text-sm text-neutral-600">
+                  Te llevaremos a la página segura de Stripe para pagar con tarjeta, Apple Pay o Google Pay.
+                </p>
+              ))}
             {payment === 'cash' && (
-              <p className="mt-4 rounded-2xl bg-neutral-100 p-3 text-sm text-neutral-600">
-                Paga al rider en la entrega. Intenta tener el importe justo 🙏
-              </p>
+              <p className="mt-4 rounded-2xl bg-neutral-100 p-3 text-sm text-neutral-600">Paga al rider en la entrega. Intenta tener el importe justo 🙏</p>
             )}
-          </Card>
+          </Section>
         </main>
 
-        {/* Resumen */}
         <aside className="mt-4 lg:mt-0">
           <div className="space-y-4 lg:sticky lg:top-24">
             <div className="rounded-3xl bg-white p-5 ring-1 ring-neutral-200/70">
               <div className="flex items-center gap-3">
-                <SafeImg src={r.cover} alt="" className="size-12 rounded-2xl" />
+                <SafeImg src={r.cover_url} alt="" className="size-12 rounded-2xl" />
                 <div>
                   <p className="font-extrabold">{r.name}</p>
                   <p className="text-xs text-neutral-500">
-                    {cart.count} producto{cart.count !== 1 && 's'} ·{' '}
-                    {mode === 'asap' ? `Llega en ${r.eta[0]}–${r.eta[1]} min` : slot ? slotLabel(slot, now) : 'Programado'}
+                    {cart.count} producto{cart.count !== 1 && 's'} · {mode === 'asap' ? `Llega en ${etaA}–${etaB} min` : slot ? slotLabel(slot, now, tz) : 'Programado'}
                   </p>
                 </div>
               </div>
@@ -377,7 +382,7 @@ export default function Checkout() {
                     <span className="text-neutral-600">
                       <b className="text-ink">{i.qty}×</b> {i.name}
                     </span>
-                    <span className="font-semibold tabular-nums">{money(i.qty * i.price)}</span>
+                    <span className="font-semibold tabular-nums">{money(i.qty * cart.priceOf(i.basePrice))}</span>
                   </li>
                 ))}
               </ul>
@@ -388,34 +393,38 @@ export default function Checkout() {
                   <input
                     value={promoInput}
                     onChange={(e) => setPromoInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && applyPromo()}
+                    onKeyDown={(e) => e.key === 'Enter' && setPromo(promoInput.trim().toUpperCase())}
                     placeholder="Código promocional"
                     className="w-full bg-transparent py-2.5 text-sm font-semibold uppercase outline-none placeholder:normal-case"
                   />
                 </label>
-                <button onClick={applyPromo} className="rounded-2xl bg-ink px-4 text-sm font-bold text-white">
+                <button onClick={() => setPromo(promoInput.trim().toUpperCase())} className="rounded-2xl bg-ink px-4 text-sm font-bold text-white">
                   Aplicar
                 </button>
               </div>
-              {promoError && <p className="mt-1.5 text-xs font-semibold text-brand-600">{promoError}</p>}
-              {promo && <p className="mt-1.5 text-xs font-semibold text-emerald-700">✓ {PROMO_CODES[promo].label} aplicado</p>}
+              {promo && serverQuote?.promo === promo && <p className="mt-1.5 text-xs font-semibold text-emerald-700">✓ Código {promo} aplicado</p>}
+              {quoteError && <p className="mt-1.5 text-xs font-semibold text-brand-600">{quoteError}</p>}
 
               <dl className="mt-4 space-y-2 border-t border-dashed border-neutral-200 pt-4 text-sm">
-                <Row label="Subtotal" value={money(cart.subtotal)} />
-                <Row label="Envío" value={r.deliveryFee === 0 ? 'Gratis' : money(r.deliveryFee)} />
-                <Row label="Tarifa de servicio" value={money(SERVICE_FEE)} />
-                <Row label="Propina rider 🐰" value={money(tipAmount)} accent />
-                {discount > 0 && <Row label={`Descuento (${promo})`} value={`−${money(discount)}`} green />}
+                <Row label="Subtotal" value={money(q.subtotal)} />
+                <Row label={km != null ? `Envío · ${fmtKm(km)}` : 'Envío'} value={address ? money(q.delivery_fee) : '—'} />
+                <Row label="Propina rider 🐰" value={money(q.tip)} accent />
+                {q.discount > 0 && <Row label={`Descuento (${promo})`} value={`−${money(q.discount)}`} green />}
                 <div className="flex justify-between border-t border-neutral-200 pt-3 text-lg font-extrabold">
                   <dt>Total</dt>
-                  <dd className="tabular-nums">{money(total)}</dd>
+                  <dd className="tabular-nums">{money(q.total)}</dd>
                 </div>
               </dl>
+              <p className="mt-2 text-[11px] text-neutral-400">
+                Envío: {money(settings.delivery_base_fee)} + {money(settings.delivery_fee_per_km)}/km desde el restaurante.
+              </p>
             </div>
 
             <div className="fixed inset-x-0 bottom-0 z-30 border-t border-neutral-200 bg-white/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur lg:static lg:mx-0 lg:rounded-3xl lg:border-0 lg:bg-transparent lg:p-0">
-              {submitted && hasErrors && (
-                <p className="mb-2 text-center text-xs font-semibold text-brand-600">Revisa los campos marcados en rojo</p>
+              {(payError || (submitted && hasErrors)) && (
+                <p className="mb-2 text-center text-xs font-semibold text-brand-600">
+                  {payError || errors.min || (!r.accepting_orders ? 'El restaurante ha pausado los pedidos' : 'Revisa los campos marcados en rojo')}
+                </p>
               )}
               <button
                 onClick={pay}
@@ -424,12 +433,12 @@ export default function Checkout() {
               >
                 {paying ? (
                   <span className="flex w-full items-center justify-center gap-2">
-                    <span className="size-5 animate-spin rounded-full border-2 border-white/40 border-t-white" /> Procesando pago…
+                    <span className="size-5 animate-spin rounded-full border-2 border-white/40 border-t-white" /> Procesando…
                   </span>
                 ) : (
                   <>
-                    <span>{mode === 'scheduled' ? 'Programar y pagar' : 'Pagar pedido'}</span>
-                    <span className="tabular-nums">{money(total)}</span>
+                    <span>{payment === 'cash' ? 'Confirmar pedido' : mode === 'scheduled' ? 'Programar y pagar' : 'Pagar pedido'}</span>
+                    <span className="tabular-nums">{money(q.total)}</span>
                   </>
                 )}
               </button>
@@ -441,12 +450,9 @@ export default function Checkout() {
   )
 }
 
-function Card({ title, icon, error, children }) {
+function Section({ title, icon, error, children }) {
   return (
-    <section
-      data-error={!!error}
-      className={`rounded-3xl bg-white p-5 ring-1 transition ${error ? 'ring-2 ring-brand-500' : 'ring-neutral-200/70'}`}
-    >
+    <section data-error={!!error} className={`rounded-3xl bg-white p-5 ring-1 transition ${error ? 'ring-2 ring-brand-500' : 'ring-neutral-200/70'}`}>
       <h2 className="mb-4 flex items-center gap-2 text-base font-extrabold">
         <span className="grid size-8 place-items-center rounded-xl bg-brand-50 text-brand-600">
           <Icon name={icon} className="size-4" />
@@ -464,9 +470,7 @@ function Choice({ active, disabled, onClick, title, subtitle, icon }) {
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`flex items-start gap-3 rounded-2xl p-3 text-left ring-1 transition disabled:cursor-not-allowed disabled:opacity-40 ${
-        active ? 'bg-brand-50 ring-2 ring-brand-600' : 'bg-white ring-neutral-200'
-      }`}
+      className={`flex items-start gap-3 rounded-2xl p-3 text-left ring-1 transition disabled:cursor-not-allowed disabled:opacity-40 ${active ? 'bg-brand-50 ring-2 ring-brand-600' : 'bg-white ring-neutral-200'}`}
     >
       <Icon name={icon} className={`mt-0.5 size-5 shrink-0 ${active ? 'text-brand-600' : 'text-neutral-400'}`} />
       <span className="min-w-0">
@@ -477,18 +481,16 @@ function Choice({ active, disabled, onClick, title, subtitle, icon }) {
   )
 }
 
-function Field({ label, value, onChange, placeholder, inputMode }) {
+function PayOption({ active, onClick, icon, title, subtitle }) {
   return (
-    <label className="block">
-      <span className="mb-1 block text-xs font-bold text-neutral-500">{label}</span>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        inputMode={inputMode}
-        className="w-full rounded-2xl bg-neutral-100 px-4 py-3 text-[15px] font-semibold outline-none placeholder:font-medium placeholder:text-neutral-400 focus:bg-white focus:ring-2 focus:ring-brand-500"
-      />
-    </label>
+    <button
+      onClick={onClick}
+      className={`flex flex-col items-center gap-1 rounded-2xl px-2 py-3 text-center ring-1 transition ${active ? 'bg-brand-50 text-brand-700 ring-2 ring-brand-600' : 'bg-white ring-neutral-200'}`}
+    >
+      <Icon name={icon} className="size-5" />
+      <span className="text-sm font-extrabold">{title}</span>
+      <span className="text-[11px] text-neutral-500">{subtitle}</span>
+    </button>
   )
 }
 
