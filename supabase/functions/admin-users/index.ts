@@ -1,6 +1,7 @@
 // Gestión de usuarios (solo superusuarios): alta, cambio de rol, bloqueo, contraseña y baja
 import { adminClient, requireRole } from '../_shared/db.ts'
 import { handle, HttpError, json } from '../_shared/http.ts'
+import { layout, p, sendEmailStrict } from '../_shared/email.ts'
 
 const ROLES = ['superuser', 'restaurant', 'rider', 'customer']
 
@@ -9,6 +10,20 @@ Deno.serve(
     const me = await requireRole(req, ['superuser'])
     const body = await req.json()
     const db = adminClient()
+
+    if (body.action === 'test_email') {
+      const to = String(body.to ?? me.email).trim()
+      try {
+        const res = await sendEmailStrict(
+          to,
+          'Prueba de email de rabeat',
+          layout('¡El email funciona! 🐰', p('Este es un mensaje de prueba enviado desde el panel de rabeat.') + p(`Remitente: ${Deno.env.get('MAIL_FROM') ?? ''}`)),
+        )
+        return json({ ok: true, to, ...res })
+      } catch (e) {
+        throw new HttpError(502, `No se pudo enviar: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
 
     if (body.action === 'create') {
       const email = String(body.email ?? '').trim().toLowerCase()

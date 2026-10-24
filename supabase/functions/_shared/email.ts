@@ -12,8 +12,19 @@ function transport() {
     port: Number(env('SMTP_PORT', '465')),
     secure: Number(env('SMTP_PORT', '465')) === 465,
     auth: { user: env('SMTP_USER'), pass: env('SMTP_PASS') },
+    // Sin respuesta del servidor en unos segundos: error en vez de bloquear la función
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
   })
   return transporter
+}
+
+// Envío que lanza el error (para la prueba de configuración del panel)
+export async function sendEmailStrict(to: string, subject: string, html: string) {
+  if (!emailEnabled()) throw new Error('El email no está configurado: faltan SMTP_USER y SMTP_PASS')
+  const info = await transport().sendMail({ from: env('MAIL_FROM', `rabeat <${env('SMTP_USER')}>`), to, subject, html })
+  return { messageId: info.messageId, response: info.response }
 }
 
 export async function sendEmail(to: string | string[], subject: string, html: string) {

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Button, Card, Field, Select, useToast } from '../components/ui.jsx'
 import { useSettings } from '../lib/settings.jsx'
-import { supabase } from '../lib/supabase.js'
+import { callFunction, supabase } from '../lib/supabase.js'
+import { useAuth } from '../lib/auth.jsx'
 import { money } from '../lib/format.js'
 import { quote } from '../lib/pricing.js'
 import { PageTitle } from './Panel.jsx'
@@ -114,6 +115,7 @@ export default function SettingsPage() {
               </Select>
             </div>
           </Card>
+          <EmailTest />
           <Button className="w-full py-4 sm:w-auto sm:px-10" loading={saving} onClick={save}>
             Guardar ajustes
           </Button>
@@ -149,5 +151,42 @@ function Row({ label, value, bold }) {
       <dt className={bold ? '' : 'text-neutral-500'}>{label}</dt>
       <dd className="tabular-nums">{value}</dd>
     </div>
+  )
+}
+
+// Envía un email de prueba con la configuración SMTP actual del servidor
+function EmailTest() {
+  const { profile } = useAuth()
+  const { config } = useSettings()
+  const toast = useToast()
+  const [to, setTo] = useState(profile?.email ?? '')
+  const [sending, setSending] = useState(false)
+  const [result, setResult] = useState(null)
+  const send = async () => {
+    setSending(true)
+    setResult(null)
+    try {
+      const res = await callFunction('admin-users', { action: 'test_email', to })
+      setResult({ ok: true, text: `Enviado a ${res.to}. Revisa la bandeja de entrada (y el spam).` })
+      toast('Email de prueba enviado')
+    } catch (e) {
+      setResult({ ok: false, text: e.message })
+    } finally {
+      setSending(false)
+    }
+  }
+  return (
+    <Card title="Emails" icon="chat">
+      <p className="mb-3 text-sm text-neutral-500">
+        Estado: <b>{config?.email ? 'configurado' : 'sin configurar (no se envían emails)'}</b>
+      </p>
+      <div className="flex gap-2">
+        <Field className="flex-1" type="email" value={to} onChange={(e) => setTo(e.target.value)} placeholder="tu@email.com" />
+        <Button variant="dark" loading={sending} onClick={send} disabled={!to}>
+          Probar
+        </Button>
+      </div>
+      {result && <p className={`mt-2 text-sm font-semibold ${result.ok ? 'text-emerald-700' : 'text-brand-600'}`}>{result.text}</p>}
+    </Card>
   )
 }
