@@ -322,7 +322,8 @@ export function Cover({ restaurant: r, variant = 'card', className = '', imgClas
   const fit = {
     // En la cabecera el nombre va encima: el logo ocupa la franja superior
     header: 'absolute inset-x-0 top-0 h-[34%] w-full px-16 pt-4 sm:h-[40%] sm:pt-6',
-    card: 'absolute inset-0 size-full p-[8%] pb-[14%]',
+    // Deja libre la franja superior, donde va la etiqueta de abierto/cerrado
+    card: 'absolute inset-x-0 top-[24%] bottom-0 w-full px-[10%] pb-[7%]',
     thumb: 'absolute inset-0 size-full p-[12%]',
   }[variant]
   return (

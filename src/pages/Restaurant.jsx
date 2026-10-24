@@ -88,7 +88,7 @@ export default function Restaurant({ slug }) {
       <div className="relative mx-auto max-w-6xl sm:mt-4 sm:px-6">
         <div className={`relative overflow-hidden sm:rounded-[28px] ${r.cover_is_logo ? 'h-72 sm:h-80' : 'h-56 sm:h-72'}`}>
           <Cover restaurant={r} variant="header" className={`size-full ${status.open ? '' : 'grayscale-[60%]'}`} />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/30" />
+          <div className={`absolute inset-0 bg-gradient-to-t from-black/70 ${r.cover_is_logo ? 'via-transparent to-transparent' : 'via-black/10 to-black/30'}`} />
           <div className="absolute inset-x-0 top-0 flex justify-between p-4 pt-[max(1rem,env(safe-area-inset-top))]">
             <button onClick={() => goBack('/')} className="grid size-10 place-items-center rounded-full bg-white/90 text-ink shadow-lg backdrop-blur transition active:scale-90" aria-label="Volver">
               <Icon name="back" />

@@ -17,7 +17,7 @@ export default function RestaurantCard({ restaurant: r, now, km, outOfRange = fa
     >
       <div className="relative aspect-[16/9] overflow-hidden">
         <Cover restaurant={r} className={`size-full transition duration-500 group-hover:scale-105 ${available ? '' : 'grayscale-[70%]'}`} />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+        {!r.cover_is_logo && <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />}
         <div className="absolute top-3 left-3">
           <StatusPill restaurant={r} now={now} />
         </div>
