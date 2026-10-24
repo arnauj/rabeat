@@ -59,13 +59,15 @@ ${cta ? `<p style="margin:24px 0 8px"><a href="${cta.href}" style="display:inlin
 </table></td></tr></table></body></html>`
 }
 
-type Item = { name: string; qty: number; unit_price: number; note?: string }
+type Item = { name: string; qty: number; unit_price: number; note?: string; options?: { group: string; name: string; price: number }[] }
 
 export function itemsTable(items: Item[], totals?: Record<string, number>) {
   const rows = items
     .map(
       (i) =>
-        `<tr><td style="padding:6px 0"><b>${i.qty}×</b> ${esc(i.name)}${i.note ? `<br><span style="color:#888;font-size:12px">“${esc(i.note)}”</span>` : ''}</td><td align="right" style="padding:6px 0">${money(i.qty * i.unit_price)}</td></tr>`,
+        `<tr><td style="padding:6px 0"><b>${i.qty}×</b> ${esc(i.name)}${
+          i.options?.length ? `<br><span style="color:#666;font-size:12px">${i.options.map((o) => esc(o.name)).join(' · ')}</span>` : ''
+        }${i.note ? `<br><span style="color:#888;font-size:12px">“${esc(i.note)}”</span>` : ''}</td><td align="right" style="padding:6px 0">${money(i.qty * i.unit_price)}</td></tr>`,
     )
     .join('')
   const totalRows = totals
@@ -83,3 +85,13 @@ export function itemsTable(items: Item[], totals?: Record<string, number>) {
 
 export const p = (html: string) => `<p style="margin:0 0 10px;font-size:15px;line-height:1.5">${html}</p>`
 export { esc }
+
+// Desglose de IGIC para el pie del pedido
+export function taxNote(breakdown: { rate: number; base: number; tax: number }[] = [], total = 0) {
+  if (!breakdown.length) return ''
+  const rows = breakdown
+    .map((b) => `IGIC ${String(b.rate).replace('.', ',')} %: base ${money(b.base)} · cuota ${money(b.tax)}`)
+    .join('<br>')
+  const tax = breakdown.reduce((n, b) => n + Number(b.tax), 0)
+  return `<p style="margin:8px 0 0;font-size:12px;color:#888;line-height:1.5">Impuestos incluidos (IGIC ${money(tax)}${total ? ` de ${money(total)}` : ''})<br>${rows}</p>`
+}

@@ -51,8 +51,9 @@ export default function CartPanel({ compact = false }) {
             <SafeImg src={i.image} alt={i.name} className="size-14 shrink-0 rounded-xl" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-bold">{i.name}</p>
+              {i.options?.length > 0 && <p className="line-clamp-2 text-xs text-neutral-500">{i.options.map((o) => o.name).join(' · ')}</p>}
               {i.note && <p className="truncate text-xs text-neutral-500">“{i.note}”</p>}
-              <p className="text-sm font-semibold text-neutral-700">{money(cart.priceOf(i.basePrice) * i.qty)}</p>
+              <p className="text-sm font-semibold text-neutral-700">{money(cart.itemPrice(i) * i.qty)}</p>
             </div>
             <QtyStepper size="sm" value={i.qty} onChange={(q) => cart.setQty(i.key, q)} />
           </li>
@@ -84,7 +85,7 @@ export default function CartPanel({ compact = false }) {
           </div>
         )}
         <div className="flex justify-between text-sm">
-          <span className="text-neutral-500">Subtotal</span>
+          <span className="text-neutral-500">Subtotal (IGIC incl.)</span>
           <span className="font-bold">{money(cart.subtotal)}</span>
         </div>
         <a

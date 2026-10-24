@@ -11,6 +11,7 @@ const FALLBACK = {
   max_tip: 50,
   dine_in_commission_pct: 5,
   dine_in_markup_pct: 0,
+  igic_pct: 7,
   timezone: DEFAULT_TZ,
 }
 

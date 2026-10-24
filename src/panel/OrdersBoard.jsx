@@ -190,6 +190,7 @@ function OrderCard({ order: o, isSuper, tz, onChange }) {
         {o.items.map((i) => (
           <li key={i.id}>
             <b>{i.qty}×</b> {i.name}
+            {i.options?.length > 0 && <span className="block pl-5 text-xs text-neutral-500">{i.options.map((x) => x.name).join(' · ')}</span>}
             {i.note && <span className="block pl-5 text-xs font-semibold text-brand-700">↳ {i.note}</span>}
           </li>
         ))}

@@ -15,6 +15,7 @@ const FIELDS = [
   'max_tip',
   'dine_in_commission_pct',
   'dine_in_markup_pct',
+  'igic_pct',
 ]
 
 export default function SettingsPage() {
@@ -50,6 +51,15 @@ export default function SettingsPage() {
       <PageTitle subtitle="Los cambios se aplican a los pedidos nuevos; los ya hechos conservan sus importes">Comisiones y envío</PageTitle>
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">
         <div className="space-y-4">
+          <Card title="Impuestos (IGIC)" icon="receipt">
+            <Field
+              label="Tipo general de IGIC (%)"
+              inputMode="decimal"
+              value={form.igic_pct}
+              onChange={set('igic_pct')}
+              hint="Los restaurantes suben sus precios sin IGIC. Se aplica a platos (salvo los que tengan otro tipo) y al envío."
+            />
+          </Card>
           <Card title="Comisiones" icon="percent">
             <div className="grid gap-3 sm:grid-cols-2">
               <Field
@@ -110,17 +120,22 @@ export default function SettingsPage() {
         </div>
 
         <Card title="Ejemplo" icon="receipt" className="h-fit lg:sticky lg:top-8">
-          <p className="mb-3 text-sm text-neutral-500">Plato de 20 € (precio del restaurante), entrega a 3 km:</p>
+          <p className="mb-3 text-sm text-neutral-500">Plato de 20 € sin IGIC (precio del restaurante), entrega a 3 km:</p>
           <dl className="space-y-1.5 text-sm">
             <Row label="El cliente paga por el plato" value={money(example.subtotal)} />
             <Row label="Envío" value={money(example.delivery_fee)} />
             <Row label="Total cliente" value={money(example.total)} bold />
             <div className="my-2 border-t border-dashed border-neutral-200" />
-            <Row label="Recibe el restaurante" value={money(example.restaurant_payout)} />
+            <Row label="IGIC incluido" value={money(example.tax_amount)} />
+            <Row label="Recibe el restaurante (con su IGIC)" value={money(example.restaurant_payout)} />
             <Row label="Comisión rabeat" value={money(example.commission_amount)} />
             <Row label="Recargo rabeat" value={money(example.markup_amount)} />
-            <Row label="Envío (rabeat)" value={money(example.delivery_fee)} />
-            <Row label="Ingreso total rabeat" value={money(example.commission_amount + example.markup_amount + example.delivery_fee)} bold />
+            <Row label="Envío sin IGIC (rabeat)" value={money(example.delivery_fee / (1 + (n('igic_pct') || 0) / 100))} />
+            <Row
+              label="Ingreso neto rabeat"
+              value={money(example.total - example.restaurant_payout - (example.tax_amount - example.restaurant_tax))}
+              bold
+            />
           </dl>
         </Card>
       </div>

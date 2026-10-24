@@ -41,7 +41,7 @@ export default function Payouts() {
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatTile label="Facturado a clientes" value={money(data.gmv)} hint={`${data.orders} pedidos · ${data.dine_in_orders ?? 0} en mesa · ${data.cash_orders} en efectivo`} />
-            <StatTile label="Ingresos plataforma" value={money(platformRevenue(data))} accent hint="recargo + comisión + envío − descuentos" />
+            <StatTile label="Ingresos plataforma" value={money(platformRevenue(data))} accent hint="recargo + comisión + envío − descuentos, sin IGIC" />
             <StatTile label="A pagar a restaurantes" value={money(data.restaurant_payouts)} />
             <StatTile label="Propinas a repartidores" value={money(data.tips)} />
           </div>
@@ -50,6 +50,11 @@ export default function Payouts() {
             <StatTile label="Comisión restaurantes" value={money(data.commission)} hint={`${money(data.dine_in_commission ?? 0)} de pedidos en mesa`} />
             <StatTile label="Gastos de envío" value={money(data.delivery)} />
             <StatTile label="Descuentos (promos)" value={`−${money(data.discounts)}`} />
+          </div>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+            <StatTile label="IGIC cobrado a clientes" value={money(data.tax ?? 0)} />
+            <StatTile label="IGIC de la comida" value={money(data.restaurant_tax ?? 0)} hint="se paga a cada restaurante, que lo declara" />
+            <StatTile label="IGIC a declarar por rabeat" value={money((data.tax ?? 0) - (data.restaurant_tax ?? 0))} hint="recargo y envío" />
           </div>
 
           <section>

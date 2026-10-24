@@ -1,5 +1,5 @@
 import { adminClient } from './db.ts'
-import { esc, itemsTable, layout, money, p, sendEmail } from './email.ts'
+import { esc, itemsTable, layout, money, p, sendEmail, taxNote } from './email.ts'
 import { siteUrl, trackingUrl } from './http.ts'
 import { formatHour, slotLabel } from './hours.js'
 
@@ -52,7 +52,7 @@ export async function notifyOrder(orderId: string, event: OrderEvent) {
           '¡Pedido enviado a cocina!',
           p(`${esc(r.name)} ya tiene tu pedido <b>${order.code}</b> para la <b>${esc(order.table_name)}</b>.`) +
             p(order.payment_method === 'cash' ? `Pagarás <b>${money(order.total)}</b> en el local.` : 'Pago recibido. ¡Gracias!') +
-            itemsTable(order.items, totals),
+            itemsTable(order.items, totals) + taxNote(order.tax_breakdown, Number(order.total)),
           { href: link, label: 'Ver mi pedido' },
         ),
       ),
@@ -69,7 +69,7 @@ export async function notifyOrder(orderId: string, event: OrderEvent) {
           p(`${esc(r.name)} ya tiene tu pedido <b>${order.code}</b>, ${when(order, tz)}.`) +
             p(`Entrega en: ${esc(addressText(order))}`) +
             p(order.payment_method === 'cash' ? `Pagarás <b>${money(order.total)}</b> en efectivo al recibirlo.` : 'Pago recibido. ¡Gracias!') +
-            itemsTable(order.items, totals),
+            itemsTable(order.items, totals) + taxNote(order.tax_breakdown, Number(order.total)),
           { href: link, label: 'Seguir mi pedido' },
         ),
       ),

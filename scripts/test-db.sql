@@ -249,4 +249,26 @@ select public.set_order_status((select id from public.orders where code = 'RBMES
 select pg_temp.ok((select status = 'delivered' and payment_status = 'paid' from public.orders where code = 'RBMESA1'), 'restaurante sirve y cobra en mesa');
 select pg_temp.ok((public.restaurant_sales(null, now() - interval '1 day', now() + interval '1 day') ->> 'dine_in_orders')::int = 1, 'ventas separan mesa');
 commit;
+
+-- ---------- Opciones de platos e IGIC ----------
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '00000000-0000-0000-0000-000000000002';
+insert into public.dish_option_groups (restaurant_id, dish_id, name, min_select, max_select)
+  select restaurant_id, id, 'Tamaño', 1, 1 from public.dishes where name = 'La Clásica';
+insert into public.dish_options (restaurant_id, group_id, name, price_delta)
+  select restaurant_id, id, 'Doble', 2 from public.dish_option_groups where name = 'Tamaño';
+select pg_temp.ok((select count(*) = 1 from public.dish_options), 'restaurante crea opciones');
+commit;
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '00000000-0000-0000-0000-000000000003';
+update public.dish_options set price_delta = 0;
+select pg_temp.ok((select price_delta = 2 from public.dish_options limit 1), 'otro restaurante no cambia opciones ajenas');
+commit;
+begin;
+set local role anon;
+select pg_temp.ok((select count(*) = 1 from public.dish_options), 'anon ve las opciones');
+select pg_temp.ok((select igic_pct = 7 from public.settings), 'IGIC general por defecto 7 %');
+commit;
 \echo TODAS LAS PRUEBAS OK

@@ -1,7 +1,7 @@
 import { supabase, unwrap } from './supabase.js'
 
 const RESTAURANT_LIST = '*, opening_hours(*), dishes(name)'
-const RESTAURANT_FULL = '*, opening_hours(*), menu_categories(*), dishes(*)'
+const RESTAURANT_FULL = '*, opening_hours(*), menu_categories(*), dishes(*, dish_option_groups(*, dish_options(*)))'
 
 export async function listRestaurants() {
   return unwrap(await supabase.from('restaurants').select(RESTAURANT_LIST).eq('active', true).order('name'))
@@ -16,7 +16,13 @@ export async function getRestaurant(slugOrId, { byId = false } = {}) {
 
 export function withMenu(r) {
   const categories = [...(r.menu_categories ?? [])].sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))
-  const dishes = [...(r.dishes ?? [])].sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))
+  const byPos = (a, b) => a.position - b.position
+  const dishes = [...(r.dishes ?? [])]
+    .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))
+    .map((d) => ({
+      ...d,
+      groups: [...(d.dish_option_groups ?? [])].sort(byPos).map((g) => ({ ...g, options: [...(g.dish_options ?? [])].sort(byPos) })),
+    }))
   return {
     ...r,
     menu: categories.map((c) => ({ ...c, dishes: dishes.filter((d) => d.category_id === c.id) })),

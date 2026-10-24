@@ -66,7 +66,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile label="Pedidos hoy" value={data.sales.orders} hint={`${data.active.length} en curso`} accent />
         <StatTile label="Ventas hoy" value={money(data.sales.gross)} hint="precio de carta" />
-        <StatTile label={isSuper ? 'Ingresos plataforma hoy' : 'A cobrar hoy'} value={money(isSuper ? platformRevenue(data.report) : data.sales.payout)} hint={isSuper ? 'recargo + comisión + envío' : 'ventas − comisión'} />
+        <StatTile label={isSuper ? 'Ingresos plataforma hoy' : 'A cobrar hoy'} value={money(isSuper ? platformRevenue(data.report) : data.sales.payout)} hint={isSuper ? 'recargo + comisión + envío, sin IGIC' : 'ventas − comisión + IGIC'} />
         <StatTile label="Ticket medio" value={money(data.sales.avg_ticket)} hint="hoy" />
       </div>
 
@@ -98,7 +98,9 @@ export default function Dashboard() {
   )
 }
 
-export const platformRevenue = (r) => (r ? Number(r.markup) + Number(r.commission) + Number(r.delivery) - Number(r.discounts) : 0)
+// Ingreso neto de la plataforma: lo cobrado − propinas − lo que se paga a restaurantes − IGIC propio a declarar
+export const platformRevenue = (r) =>
+  r ? Number(r.gmv) - Number(r.tips) - Number(r.restaurant_payouts) - (Number(r.tax ?? 0) - Number(r.restaurant_tax ?? 0)) : 0
 
 function QuickRestaurant({ restaurant: r, onChange }) {
   const now = useNow()

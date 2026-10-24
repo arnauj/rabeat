@@ -25,7 +25,7 @@ export default function Sales() {
 
   return (
     <>
-      <PageTitle subtitle="Importes a precio de carta del restaurante (sin el recargo de la plataforma)">Ventas</PageTitle>
+      <PageTitle subtitle="Importes a precio de carta, sin IGIC ni recargo de la plataforma">Ventas</PageTitle>
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <PeriodPicker value={period} onChange={setPeriod} />
         {restaurants?.length > 1 && (
@@ -58,7 +58,7 @@ export default function Sales() {
               value={`−${money(data.commission)}`}
               hint={`${settings.restaurant_commission_pct}% domicilio · ${settings.dine_in_commission_pct}% mesa`}
             />
-            <StatTile label="Neto a cobrar" value={money(data.payout)} accent />
+            <StatTile label="Neto a cobrar" value={money(data.payout)} accent hint={`incluye ${money(data.tax ?? 0)} de IGIC a declarar`} />
             <StatTile label="Ticket medio" value={money(data.avg_ticket)} />
           </div>
           <section className="rounded-3xl bg-white p-5 ring-1 ring-neutral-200/70">

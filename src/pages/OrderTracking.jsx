@@ -9,6 +9,7 @@ import { useSettings } from '../lib/settings.jsx'
 import { useCart } from '../lib/cart.jsx'
 import { money, PAYMENT_METHOD } from '../lib/format.js'
 import { formatHour, slotLabel } from '../lib/time.js'
+import TaxBreakdown from '../components/TaxBreakdown.jsx'
 
 const DINE_IN_STAGES = [
   { id: 'confirmed', label: 'Pedido recibido', hint: 'La cocina ya tiene tu pedido' },
@@ -214,6 +215,7 @@ export default function OrderTracking({ token, query }) {
               <li key={idx} className="flex justify-between gap-3">
                 <span className="text-neutral-600">
                   <b className="text-ink">{i.qty}×</b> {i.name}
+                  {i.options?.length > 0 && <span className="block text-xs text-neutral-400">{i.options.map((x) => x.name).join(' · ')}</span>}
                   {i.note && <span className="block text-xs text-neutral-400">“{i.note}”</span>}
                 </span>
                 <span className="font-semibold tabular-nums">{money(i.qty * i.unit_price)}</span>
@@ -234,6 +236,7 @@ export default function OrderTracking({ token, query }) {
               <dd className="tabular-nums">{money(o.total)}</dd>
             </div>
           </dl>
+          <TaxBreakdown q={o} />
           {o.address && (
             <p className="mt-4 flex items-start gap-2 rounded-2xl bg-neutral-100 p-3 text-xs text-neutral-600">
               <Icon name="pin" className="size-4 shrink-0 text-brand-600" />

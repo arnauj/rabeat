@@ -1,0 +1,1451 @@
+{
+ "categories": [
+  {
+   "name": "Entrantes",
+   "dishes": [
+    {
+     "code": "1",
+     "name": "Sopa de Miso",
+     "name_en": "Miso Soup",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 6.25,
+     "allergens": [
+      "soja",
+      "pescado"
+     ]
+    },
+    {
+     "code": "2",
+     "name": "Ensalada de la casa",
+     "name_en": "House Salad",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 6.95,
+     "allergens": [
+      "soja",
+      "sesamo"
+     ]
+    },
+    {
+     "code": "3",
+     "name": "Ensalada de tofu",
+     "name_en": "Tofu Salad",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 6.75,
+     "allergens": [
+      "soja",
+      "sesamo"
+     ]
+    },
+    {
+     "code": "4",
+     "name": "Edamame",
+     "name_en": "Steamed Soybeans",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 5.95,
+     "allergens": [
+      "soja"
+     ]
+    },
+    {
+     "code": "5",
+     "name": "Tempura de tofu",
+     "name_en": "Tofu Tempura",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 6.75,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "6",
+     "name": "Pollo frito",
+     "name_en": "Japanese Fried Chicken (Karaage)",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 9.75,
+     "allergens": [
+      "gluten",
+      "soja",
+      "sesamo"
+     ]
+    },
+    {
+     "code": "7",
+     "name": "Croquetas",
+     "name_en": "Japanese Croquettes",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 9.95,
+     "allergens": [
+      "gluten",
+      "lacteos",
+      "huevo"
+     ]
+    },
+    {
+     "code": "8",
+     "name": "Tataki de atún",
+     "name_en": "Tuna Tataki",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 16.75,
+     "allergens": [
+      "pescado",
+      "soja",
+      "sesamo"
+     ]
+    },
+    {
+     "code": "9",
+     "name": "Tataki de solomillo",
+     "name_en": "Beef Tenderloin Tataki",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 16.95,
+     "allergens": [
+      "soja",
+      "sesamo"
+     ]
+    },
+    {
+     "code": "10",
+     "name": "Chuleta de cerdo frito",
+     "name_en": "Fried Pork Cutlet (Tonkatsu)",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 8.85,
+     "allergens": [
+      "gluten",
+      "huevo"
+     ]
+    },
+    {
+     "code": "11",
+     "name": "Bolitas de pulpo",
+     "name_en": "Octopus Balls (Takoyaki)",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 9.95,
+     "allergens": [
+      "gluten",
+      "huevo",
+      "soja",
+      "moluscos"
+     ]
+    },
+    {
+     "code": "12",
+     "name": "Rollitos de langostinos",
+     "name_en": "Prawn Rolls",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 7.95,
+     "allergens": [
+      "gluten",
+      "crustaceos"
+     ]
+    },
+    {
+     "code": "13",
+     "name": "Minirollo",
+     "name_en": "Mini Spring Rolls",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 3.55,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "14",
+     "name": "Wantan Frito",
+     "name_en": "Fried Wonton",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 5.95,
+     "allergens": [
+      "gluten",
+      "huevo",
+      "soja"
+     ]
+    },
+    {
+     "code": "15",
+     "name": "Pan Japonés",
+     "name_en": "Japanese Bread",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 3.1,
+     "allergens": [
+      "gluten",
+      "lacteos",
+      "huevo"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Dimson",
+   "dishes": [
+    {
+     "code": "16",
+     "name": "Xiao Long Bao",
+     "name_en": "Steamed Pork Soup Dumplings",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 7.95,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "17",
+     "name": "Empanadilla de gambas",
+     "name_en": "Shrimp Dumplings (Har Gow)",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 7.95,
+     "allergens": [
+      "gluten",
+      "crustaceos"
+     ]
+    },
+    {
+     "code": "18",
+     "name": "Gyozas",
+     "name_en": "Pan-fried Dumplings",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 7.95,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "19",
+     "name": "Shaomai",
+     "name_en": "Pork and Shrimp Steamed Dumplings",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 6.35,
+     "allergens": [
+      "gluten",
+      "crustaceos",
+      "soja"
+     ]
+    },
+    {
+     "code": "20",
+     "name": "Zhongzi",
+     "name_en": "Sticky Rice Dumpling wrapped in Bamboo Leaves",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 4.5,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "21",
+     "name": "Gyozas vegetales",
+     "name_en": "Vegetable Dumplings",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 6.95,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "22",
+     "name": "Gyozas de pollo",
+     "name_en": "Chicken Dumplings",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 6.95,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Sushi y Sashimi",
+   "dishes": [
+    {
+     "code": "23",
+     "name": "Maki",
+     "name_en": "Maki Roll (8 pieces)",
+     "portion": "8 piezas",
+     "description": "",
+     "description_en": "",
+     "price": 7.95,
+     "allergens": [
+      "pescado",
+      "soja",
+      "sesamo"
+     ]
+    },
+    {
+     "code": "24",
+     "name": "California Maki",
+     "name_en": "California Maki Roll (8 pieces)",
+     "portion": "8 piezas",
+     "description": "",
+     "description_en": "",
+     "price": 12.95,
+     "allergens": [
+      "crustaceos",
+      "huevo",
+      "soja",
+      "sesamo"
+     ]
+    },
+    {
+     "code": "25",
+     "name": "Futo Maki",
+     "name_en": "Futo Maki Roll (8 pieces)",
+     "portion": "8 piezas",
+     "description": "",
+     "description_en": "",
+     "price": 14.5,
+     "allergens": [
+      "pescado",
+      "crustaceos",
+      "huevo",
+      "soja"
+     ]
+    },
+    {
+     "code": "26",
+     "name": "Uramaki",
+     "name_en": "Uramaki Roll (8 pieces)",
+     "portion": "8 piezas",
+     "description": "",
+     "description_en": "",
+     "price": 15.95,
+     "allergens": [
+      "pescado",
+      "soja",
+      "sesamo"
+     ]
+    },
+    {
+     "code": "26-A",
+     "name": "Uramaki Flameado",
+     "name_en": "Seared Uramaki Roll",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 16.95,
+     "allergens": [
+      "pescado",
+      "soja",
+      "sesamo",
+      "gluten"
+     ]
+    },
+    {
+     "code": "27",
+     "name": "Temaki",
+     "name_en": "Temaki Hand Roll (1 piece)",
+     "portion": "Cono, 1 pieza",
+     "description": "",
+     "description_en": "",
+     "price": 6.95,
+     "allergens": [
+      "pescado",
+      "soja",
+      "sesamo",
+      "gluten"
+     ]
+    },
+    {
+     "code": "28",
+     "name": "Tokuyon Sushi",
+     "name_en": "Tokuyon Sushi Combo (10 pieces of Nigiri)",
+     "portion": "10 piezas de Nigiris",
+     "description": "",
+     "description_en": "",
+     "price": 21.75,
+     "allergens": [
+      "pescado",
+      "soja",
+      "crustaceos"
+     ]
+    },
+    {
+     "code": "29",
+     "name": "Funamori Sushi",
+     "name_en": "Funamori Sushi Boat (14 Nigiri and 8 Maki)",
+     "portion": "14 Nigiris y 8 Makis",
+     "description": "",
+     "description_en": "",
+     "price": 28.5,
+     "allergens": [
+      "pescado",
+      "soja",
+      "sesamo",
+      "crustaceos",
+      "gluten"
+     ]
+    },
+    {
+     "code": "30",
+     "name": "Sashimi Moriawase",
+     "name_en": "Assorted Sashimi Platter",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 20.55,
+     "allergens": [
+      "pescado",
+      "soja"
+     ]
+    },
+    {
+     "code": "31",
+     "name": "Sushi to Sashimi",
+     "name_en": "Sushi & Sashimi Combo (10 Nigiri & 12 Sashimi)",
+     "portion": "10 Nigiris y 12 Sashimi",
+     "description": "",
+     "description_en": "",
+     "price": 32.5,
+     "allergens": [
+      "pescado",
+      "soja",
+      "sesamo",
+      "crustaceos"
+     ]
+    },
+    {
+     "code": "32",
+     "name": "Tempura de California Maki",
+     "name_en": "Fried California Maki in Tempura (8 pieces)",
+     "portion": "8 piezas",
+     "description": "",
+     "description_en": "",
+     "price": 14.95,
+     "allergens": [
+      "gluten",
+      "crustaceos",
+      "huevo",
+      "soja",
+      "sesamo"
+     ]
+    },
+    {
+     "code": "33",
+     "name": "Dragón Roll",
+     "name_en": "Dragon Roll (8 pieces)",
+     "portion": "8 piezas",
+     "description": "Anguila y tempura de langostinos con aguacate.",
+     "description_en": "Eel and prawn tempura with avocado.",
+     "price": 15.95,
+     "allergens": [
+      "pescado",
+      "crustaceos",
+      "gluten",
+      "sesamo",
+      "soja"
+     ]
+    },
+    {
+     "code": "34",
+     "name": "Ceviche Roll",
+     "name_en": "Ceviche Roll (8 pieces)",
+     "portion": "8 piezas",
+     "description": "Anguila y tempura de langostinos con aguacate.",
+     "description_en": "Eel and prawn tempura with avocado.",
+     "price": 15.75,
+     "allergens": [
+      "pescado",
+      "crustaceos",
+      "gluten",
+      "sesamo",
+      "soja"
+     ]
+    },
+    {
+     "code": "35",
+     "name": "Tartar de Atún",
+     "name_en": "Tuna Tartare",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 15.5,
+     "allergens": [
+      "pescado",
+      "soja",
+      "sesamo"
+     ]
+    },
+    {
+     "code": "36",
+     "name": "Tartar de Salmón",
+     "name_en": "Salmon Tartare",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 15.95,
+     "allergens": [
+      "pescado",
+      "soja",
+      "sesamo"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Guarnición",
+   "dishes": [
+    {
+     "code": "37",
+     "name": "Arroz Blanco",
+     "name_en": "White Rice",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 3.75,
+     "allergens": []
+    },
+    {
+     "code": "38",
+     "name": "Arroz Frito",
+     "name_en": "Fried Rice",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 6.75,
+     "allergens": [
+      "gluten",
+      "soja",
+      "huevo"
+     ]
+    },
+    {
+     "code": "39",
+     "name": "Tallarines Fritos",
+     "name_en": "Fried Noodles",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 7.95,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "40",
+     "name": "Verduras",
+     "name_en": "Sautéed Vegetables",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 7.75,
+     "allergens": [
+      "soja",
+      "sesamo"
+     ]
+    },
+    {
+     "code": "41",
+     "name": "Ramen",
+     "name_en": "Ramen Noodle Soup",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 10.75,
+     "allergens": [
+      "gluten",
+      "huevo",
+      "soja"
+     ]
+    },
+    {
+     "code": "42",
+     "name": "Udon",
+     "name_en": "Udon Noodle Soup",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 10.95,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "43",
+     "name": "Ensalada de Tallarines",
+     "name_en": "Noodle Salad",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 10.75,
+     "allergens": [
+      "gluten",
+      "soja",
+      "sesamo"
+     ]
+    },
+    {
+     "code": "44",
+     "name": "Arroz Frito con Huevo",
+     "name_en": "Fried Rice with Egg",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 4.95,
+     "allergens": [
+      "gluten",
+      "soja",
+      "huevo"
+     ]
+    },
+    {
+     "code": "45",
+     "name": "Arroz Frito Especial",
+     "name_en": "Special Fried Rice",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 9.25,
+     "allergens": [
+      "gluten",
+      "soja",
+      "huevo",
+      "crustaceos"
+     ]
+    },
+    {
+     "code": "46",
+     "name": "Arroz Frito con Gambas",
+     "name_en": "Fried Rice with Prawns",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 8.95,
+     "allergens": [
+      "gluten",
+      "soja",
+      "huevo",
+      "crustaceos"
+     ]
+    },
+    {
+     "code": "47",
+     "name": "Arroz Frito con Pollo Izakaya",
+     "name_en": "Fried Rice with Izakaya Chicken",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 10.95,
+     "allergens": [
+      "gluten",
+      "soja",
+      "huevo",
+      "sesamo"
+     ]
+    },
+    {
+     "code": "48",
+     "name": "Udon en Plancha",
+     "name_en": "Griddle Stir-Fried Udon",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 10.25,
+     "allergens": [
+      "gluten",
+      "soja",
+      "sesamo"
+     ]
+    },
+    {
+     "code": "49",
+     "name": "Fideos de Arroz",
+     "name_en": "Rice Noodles",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 8.95,
+     "allergens": [
+      "soja"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Tempura",
+   "dishes": [
+    {
+     "code": "50",
+     "name": "Tempura Mixta",
+     "name_en": "Mixed Tempura",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 15.95,
+     "allergens": [
+      "gluten",
+      "crustaceos",
+      "huevo"
+     ]
+    },
+    {
+     "code": "51",
+     "name": "Tempura de Langostinos",
+     "name_en": "Prawn Tempura",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 16.95,
+     "allergens": [
+      "gluten",
+      "crustaceos",
+      "huevo"
+     ]
+    },
+    {
+     "code": "52",
+     "name": "Langostinos Fritos",
+     "name_en": "Fried Prawns",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 15.95,
+     "allergens": [
+      "gluten",
+      "crustaceos",
+      "huevo"
+     ]
+    },
+    {
+     "code": "53",
+     "name": "Tempura de Verduras",
+     "name_en": "Vegetable Tempura",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 11.95,
+     "allergens": [
+      "gluten",
+      "huevo"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Platos Calientes",
+   "dishes": [
+    {
+     "code": "54",
+     "name": "Pollo con Salsa Curri al Estilo Japonés",
+     "name_en": "Japanese Style Chicken Curry",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 10.95,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "55",
+     "name": "Cerdo al Estilo Japonés",
+     "name_en": "Japanese Style Pork",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 9.95,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "56",
+     "name": "Oden",
+     "name_en": "Oden Stew",
+     "portion": "",
+     "description": "Tradicional guiso con pasteles de pescado, huevo y daikon en caldo dashi.",
+     "description_en": "Traditional stew with fishcakes, egg and daikon in dashi broth.",
+     "price": 17.95,
+     "allergens": [
+      "pescado",
+      "huevo",
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "57",
+     "name": "Sukiyaki",
+     "name_en": "Sukiyaki Hot Pot",
+     "portion": "",
+     "description": "Hot pot de ternera en finas lonchas, tofu y verduras en salsa dulce de soja.",
+     "description_en": "Thinly sliced beef, tofu and vegetables simmered in sweet soy sauce.",
+     "price": 19.95,
+     "allergens": [
+      "soja",
+      "gluten",
+      "huevo"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Kushi",
+   "dishes": [
+    {
+     "code": "59",
+     "name": "Pinchito de Dango",
+     "name_en": "Dango Skewers",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 9.9,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "60",
+     "name": "Pinchito de Pollo",
+     "name_en": "Chicken Skewers (Yakitori)",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 10.5,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "63",
+     "name": "Pinchitos de Ternera",
+     "name_en": "Beef Skewers (Kushiyaki)",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 10.5,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Teppanyaki",
+   "dishes": [
+    {
+     "code": "64",
+     "name": "Lubina",
+     "name_en": "Sea Bass Teppanyaki",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 14.95,
+     "allergens": [
+      "pescado",
+      "soja"
+     ]
+    },
+    {
+     "code": "65",
+     "name": "Salmón",
+     "name_en": "Salmon Teppanyaki",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 17.95,
+     "allergens": [
+      "pescado",
+      "soja"
+     ]
+    },
+    {
+     "code": "66",
+     "name": "Atún",
+     "name_en": "Tuna Teppanyaki",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 16.95,
+     "allergens": [
+      "pescado",
+      "soja"
+     ]
+    },
+    {
+     "code": "67",
+     "name": "Langostino",
+     "name_en": "Prawn Teppanyaki",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 16.95,
+     "allergens": [
+      "crustaceos",
+      "soja"
+     ]
+    },
+    {
+     "code": "69",
+     "name": "Teriyaki Solomillo de Ternera",
+     "name_en": "Beef Tenderloin Teriyaki",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 18.5,
+     "allergens": [
+      "soja",
+      "gluten"
+     ]
+    },
+    {
+     "code": "72",
+     "name": "Teriyaki de Pato",
+     "name_en": "Duck Teriyaki",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 18.95,
+     "allergens": [
+      "soja",
+      "gluten"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Comida China",
+   "dishes": [
+    {
+     "code": "73",
+     "name": "Pollo con Salsa al Limón",
+     "name_en": "Lemon Chicken",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 9.8,
+     "allergens": [
+      "gluten",
+      "huevo"
+     ]
+    },
+    {
+     "code": "74",
+     "name": "Pollo Frito con Almendras",
+     "name_en": "Fried Chicken with Almonds",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 8.7,
+     "allergens": [
+      "gluten",
+      "soja",
+      "frutos_cascara"
+     ]
+    },
+    {
+     "code": "75",
+     "name": "Ternera con Pimiento Verde",
+     "name_en": "Beef with Green Pepper",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 8.95,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "76",
+     "name": "Ternera con Cebolla y Jengibre",
+     "name_en": "Beef with Onion and Ginger",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 9.35,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "77",
+     "name": "Ternera con Salsa de Ostras",
+     "name_en": "Beef in Oyster Sauce",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 9.55,
+     "allergens": [
+      "gluten",
+      "soja",
+      "moluscos"
+     ]
+    },
+    {
+     "code": "78",
+     "name": "Ternera Crujiente con Salsa Picante",
+     "name_en": "Crispy Beef with Spicy Sauce",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 9.25,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "79",
+     "name": "Familia Feliz",
+     "name_en": "Happy Family",
+     "portion": "",
+     "description": "Variado de carnes, mariscos y verduras salteadas.",
+     "description_en": "Assorted meats, seafood and sautéed vegetables.",
+     "price": 9.95,
+     "allergens": [
+      "gluten",
+      "soja",
+      "crustaceos",
+      "pescado"
+     ]
+    },
+    {
+     "code": "80",
+     "name": "Gambas al Ajillo",
+     "name_en": "Garlic Prawns",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 9.95,
+     "allergens": [
+      "crustaceos",
+      "sulfitos"
+     ]
+    },
+    {
+     "code": "80A",
+     "name": "Pato con Salsa Cantonesa",
+     "name_en": "Duck with Cantonese Sauce",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 13.95,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "80B",
+     "name": "Pato Pekines",
+     "name_en": "Peking Duck",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 13.95,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Postres",
+   "dishes": [
+    {
+     "code": "81",
+     "name": "Muchi",
+     "name_en": "Mochi (Japanese Rice Cake)",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 6.95,
+     "allergens": [
+      "soja",
+      "lacteos"
+     ]
+    },
+    {
+     "code": "82",
+     "name": "Bota Muchi",
+     "name_en": "Botamochi (Sweet Rice Ball with Red Bean)",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 6.95,
+     "allergens": [
+      "soja"
+     ]
+    },
+    {
+     "code": "83",
+     "name": "Ichigo Daifuku",
+     "name_en": "Strawberry Daifuku Mochi",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 6.95,
+     "allergens": [
+      "soja"
+     ]
+    },
+    {
+     "code": "84",
+     "name": "Helado de té Verde",
+     "name_en": "Green Tea Ice Cream (Matcha Ice Cream)",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 5.75,
+     "allergens": [
+      "lacteos"
+     ]
+    },
+    {
+     "code": "86",
+     "name": "Plátano Frito",
+     "name_en": "Fried Banana",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 4.75,
+     "allergens": [
+      "gluten"
+     ]
+    },
+    {
+     "code": "87",
+     "name": "Helado de Tempura",
+     "name_en": "Tempura Fried Ice Cream",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 6.95,
+     "allergens": [
+      "gluten",
+      "lacteos",
+      "huevo"
+     ]
+    },
+    {
+     "code": "88",
+     "name": "Batido de Matcha",
+     "name_en": "Matcha Milkshake",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 7.25,
+     "allergens": [
+      "lacteos"
+     ]
+    },
+    {
+     "code": "89",
+     "name": "Maqiu",
+     "name_en": "Maqiu (Sesame Ball with Red Bean)",
+     "portion": "",
+     "description": "",
+     "description_en": "",
+     "price": 6.95,
+     "allergens": [
+      "sesamo",
+      "gluten"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Poke Bowls y Burritos",
+   "dishes": [
+    {
+     "code": "",
+     "name": "Oishi Bowl",
+     "name_en": "",
+     "portion": "",
+     "description": "Pato crujiente, aguacate, edamame, pepino, rabanito, sésamo, salsa teriyaki.",
+     "description_en": "Crispy duck, avocado, edamame, cucumber, radish, sesame, teriyaki sauce.",
+     "price": 12.95,
+     "allergens": [
+      "gluten",
+      "soja",
+      "sesamo"
+     ]
+    },
+    {
+     "code": "",
+     "name": "Hot Tuna Bowl",
+     "name_en": "",
+     "portion": "",
+     "description": "Atún, aguacate, wakame, tomate, cebolla dulce, brotes de soja, cebolla frita, sriracha, aceite de sésamo, 7 picantes y salsa ponzú.",
+     "description_en": "Tuna, avocado, wakame, tomato, sweet onion, soy sprouts, fried onion, sriracha, sesame oil, shichimi, ponzu sauce.",
+     "price": 13.25,
+     "allergens": [
+      "pescado",
+      "soja",
+      "sesamo",
+      "gluten"
+     ]
+    },
+    {
+     "code": "",
+     "name": "Hot Salmón Bowl",
+     "name_en": "",
+     "portion": "",
+     "description": "Salmón, mango, edamame, aguacate, rabanito, sésamo, aceite sésamo, sriracha, salsa ponzú y 7 picantes.",
+     "description_en": "Salmon, mango, edamame, avocado, radish, sesame, sesame oil, sriracha, ponzu sauce, shichimi.",
+     "price": 13.25,
+     "allergens": [
+      "pescado",
+      "soja",
+      "sesamo",
+      "gluten"
+     ]
+    },
+    {
+     "code": "",
+     "name": "Chicken Bowl",
+     "name_en": "",
+     "portion": "",
+     "description": "Pollo crujiente, piña, edamame, wakame, tomate, pepino, cebolla crujiente y salsa teriyaki.",
+     "description_en": "Crispy chicken, pineapple, edamame, wakame, tomato, cucumber, crispy onion, teriyaki sauce.",
+     "price": 12.5,
+     "allergens": [
+      "gluten",
+      "soja"
+     ]
+    },
+    {
+     "code": "",
+     "name": "Dragon Bowl",
+     "name_en": "",
+     "portion": "",
+     "description": "Ebi fry, aguacate, edamame, zanahoria, cebolla dulce, maíz dulce, cebolla crujiente y salsa sweetchili.",
+     "description_en": "Ebi fry, avocado, edamame, carrot, sweet onion, sweet corn, crispy onion, sweet chili sauce.",
+     "price": 13.5,
+     "allergens": [
+      "gluten",
+      "crustaceos"
+     ]
+    },
+    {
+     "code": "",
+     "name": "California Bowl",
+     "name_en": "",
+     "portion": "",
+     "description": "Gambas, wakame, aguacate, pepino, maíz dulce, rabanito, masago, tira de nori y salsa mayonesa picante.",
+     "description_en": "Prawns, wakame, avocado, cucumber, sweet corn, radish, masago, nori strip, spicy mayo sauce.",
+     "price": 12.75,
+     "allergens": [
+      "crustaceos",
+      "huevo",
+      "sesamo"
+     ]
+    },
+    {
+     "code": "",
+     "name": "Vegan Bowl",
+     "name_en": "",
+     "portion": "",
+     "description": "Tofu, aguacate, wakame, tomate, cebolla dulce, brotes de soja, pepino, cebolla frita, almendras y salsa mayonesa picante.",
+     "description_en": "Tofu, avocado, wakame, tomato, sweet onion, soy sprouts, cucumber, fried onion, almonds, spicy mayo.",
+     "price": 11.9,
+     "allergens": [
+      "soja",
+      "frutos_cascara",
+      "sesamo",
+      "gluten"
+     ]
+    }
+   ]
+  }
+ ],
+ "menu_del_dia": {
+  "price": 13.95,
+  "groups": [
+   {
+    "name": "Primer plato",
+    "options": [
+     {
+      "name": "Sopa de Miso",
+      "name_en": "Miso Soup",
+      "allergens": [
+       "soja",
+       "pescado"
+      ]
+     },
+     {
+      "name": "Ensalada",
+      "name_en": "Salad",
+      "allergens": [
+       "sesamo",
+       "soja"
+      ]
+     },
+     {
+      "name": "Mini Rollo",
+      "name_en": "Mini Spring Roll",
+      "allergens": [
+       "gluten",
+       "soja"
+      ]
+     }
+    ]
+   },
+   {
+    "name": "Segundo plato",
+    "options": [
+     {
+      "name": "Maki California",
+      "name_en": "California Roll",
+      "allergens": [
+       "gluten",
+       "crustaceos",
+       "sesamo"
+      ]
+     },
+     {
+      "name": "Maki",
+      "name_en": "Maki Roll",
+      "allergens": [
+       "pescado",
+       "soja"
+      ]
+     },
+     {
+      "name": "Gyoza",
+      "name_en": "Dumplings",
+      "allergens": [
+       "gluten",
+       "soja",
+       "sesamo"
+      ]
+     },
+     {
+      "name": "Shuimai",
+      "name_en": "Steamed Dumplings",
+      "allergens": [
+       "gluten",
+       "crustaceos",
+       "soja"
+      ]
+     }
+    ]
+   },
+   {
+    "name": "Tercer plato",
+    "options": [
+     {
+      "name": "Acompañado de arroz blanco o frito Served with white or fried rice",
+      "name_en": "",
+      "allergens": []
+     },
+     {
+      "name": "Tonkatsu",
+      "name_en": "Fried pork cutlet",
+      "allergens": [
+       "gluten",
+       "huevo"
+      ]
+     },
+     {
+      "name": "Ternera crujiente Con salsa picante",
+      "name_en": "Crispy beef With spicy sauce",
+      "allergens": [
+       "gluten",
+       "soja"
+      ]
+     },
+     {
+      "name": "Chasu Pork Don",
+      "name_en": "Braised pork bowl",
+      "allergens": [
+       "gluten",
+       "soja"
+      ]
+     },
+     {
+      "name": "Yakitori",
+      "name_en": "Chicken skewers",
+      "allergens": [
+       "gluten",
+       "soja"
+      ]
+     },
+     {
+      "name": "Ramen",
+      "name_en": "Noodle soup",
+      "allergens": [
+       "gluten",
+       "huevo",
+       "soja",
+       "sesamo"
+      ]
+     },
+     {
+      "name": "Izakaya -fu Kara-age",
+      "name_en": "Izakaya assortment",
+      "allergens": [
+       "gluten",
+       "soja"
+      ]
+     },
+     {
+      "name": "Pescado del día",
+      "name_en": "Catch of the day",
+      "allergens": [
+       "pescado"
+      ]
+     }
+    ]
+   }
+  ]
+ }
+}

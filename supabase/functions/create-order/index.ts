@@ -2,7 +2,7 @@
 import { adminClient, currentUser } from '../_shared/db.ts'
 import { handle, HttpError, json, siteUrl, trackingUrl } from '../_shared/http.ts'
 import { getStatus, isValidSlot } from '../_shared/hours.js'
-import { customerPrice, deliveryDistanceKm, inDeliveryRange, quote } from '../_shared/pricing.js'
+import { deliveryDistanceKm, grossPrice, inDeliveryRange, quote, resolveOptions, taxRate } from '../_shared/pricing.js'
 import { cents, stripe, stripeEnabled } from '../_shared/stripe.ts'
 import { notifyOrder } from '../_shared/notify.ts'
 
@@ -11,7 +11,7 @@ type Body = {
   order_type?: 'delivery' | 'dine_in'
   table_code?: string
   restaurant_id: string
-  items: { dish_id: string; qty: number; note?: string }[]
+  items: { dish_id: string; qty: number; note?: string; options?: string[] }[]
   address?: { street: string; details?: string; notes?: string; lat: number; lng: number }
   customer?: { name?: string; email?: string; phone?: string }
   scheduled_for?: string | null
@@ -50,7 +50,7 @@ Deno.serve(
 
     const { data: dishes } = await db
       .from('dishes')
-      .select('id, name, price, available, restaurant_id')
+      .select('id, name, price, available, restaurant_id, tax_pct, schedule, dish_option_groups(*, dish_options(*))')
       .in('id', lines.map((i) => i.dish_id))
     const byId = new Map((dishes ?? []).map((d) => [d.id, d]))
     const unavailable = lines.filter((i) => {
@@ -99,7 +99,23 @@ Deno.serve(
       promo = data
     }
 
-    const items = lines.map((i) => ({ ...i, base_price: Number(byId.get(i.dish_id)!.price), name: byId.get(i.dish_id)!.name }))
+    // Opciones (menús, tamaños, extras) e IGIC de cada línea
+    const items = lines.map((i) => {
+      const d = byId.get(i.dish_id)!
+      const groups = (d.dish_option_groups ?? [])
+        .sort((a: any, b: any) => a.position - b.position)
+        .map((g: any) => ({ ...g, options: g.dish_options ?? [] }))
+      const res = resolveOptions(groups, i.options ?? [])
+      if (res.error) throw new HttpError(400, `${d.name}: ${res.error}`)
+      return {
+        ...i,
+        name: d.name,
+        schedule: d.schedule,
+        base_price: Number(d.price) + res.delta!,
+        tax_pct: taxRate(d.tax_pct, settings),
+        chosen: res.chosen!,
+      }
+    })
     const q = quote({ items, settings: pricing, km, tip: dineIn ? 0 : body.tip ?? 0, promo })
     if (promo && q.discount === 0) throw new HttpError(400, `Este código requiere un pedido mínimo de ${promo.min_subtotal} €`)
     const minOk = dineIn || q.subtotal >= Number(restaurant.min_order)
@@ -118,6 +134,11 @@ Deno.serve(
     } else if (!status.open && !body.dry_run) {
       throw new HttpError(409, 'El restaurante está cerrado: programa el pedido para cuando abra')
     }
+
+    // Platos con horario propio (p. ej. menú del día solo a mediodía)
+    const when = scheduledFor ?? now
+    const outOfSchedule = items.find((i) => Array.isArray(i.schedule) && i.schedule.length && !getStatus(i.schedule, when, settings.timezone).open)
+    if (outOfSchedule && !body.dry_run) throw new HttpError(409, `«${outOfSchedule.name}» no está disponible a esa hora`)
 
     if (body.dry_run) return json({ quote: q, distance_km: km, min_order_ok: minOk, open: status.open, promo: promo?.code ?? null })
 
@@ -169,7 +190,9 @@ Deno.serve(
         dish_id: i.dish_id,
         name: i.name,
         base_price: i.base_price,
-        unit_price: customerPrice(i.base_price, q.markup_pct),
+        unit_price: grossPrice(i.base_price, q.markup_pct, i.tax_pct),
+        tax_pct: i.tax_pct,
+        options: i.chosen,
         qty: i.qty,
         note: (i.note ?? '').slice(0, 140),
       })),
@@ -198,7 +221,9 @@ Deno.serve(
         quantity,
       }
     }
-    items.forEach((i) => add(i.name, customerPrice(i.base_price, q.markup_pct), i.qty))
+    items.forEach((i) =>
+      add(i.chosen.length ? `${i.name} (${i.chosen.map((c) => c.name).join(', ')})`.slice(0, 250) : i.name, grossPrice(i.base_price, q.markup_pct, i.tax_pct), i.qty),
+    )
     if (q.delivery_fee > 0 && km != null) add(`Envío (${km.toFixed(1)} km)`, q.delivery_fee)
     if (q.tip > 0) add('Propina para tu repartidor', q.tip)
 

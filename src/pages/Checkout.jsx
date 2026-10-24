@@ -12,6 +12,7 @@ import { km as fmtKm, money } from '../lib/format.js'
 import { deliverySlots, formatHour, groupSlotsByDay, slotLabel } from '../lib/time.js'
 import { deliveryDistanceKm, etaMinutes, inDeliveryRange, quote } from '../lib/pricing.js'
 import { goBack, navigate } from '../lib/router.js'
+import TaxBreakdown from '../components/TaxBreakdown.jsx'
 
 const TIP_OPTIONS = [0, 1, 2, 3, 5]
 const PENDING_KEY = 'rabeat:pendingCheckout'
@@ -84,7 +85,7 @@ function DeliveryCheckout({ query }) {
   const inRange = km != null && inDeliveryRange(km, settings)
 
   // Presupuesto del servidor (valida promo, distancia y precios reales)
-  const items = useMemo(() => cart.items.map((i) => ({ dish_id: i.dishId, qty: i.qty, note: i.note })), [cart.items])
+  const items = useMemo(() => cart.items.map((i) => ({ dish_id: i.dishId, qty: i.qty, note: i.note, options: i.optionIds ?? [] })), [cart.items])
   const reqId = useRef(0)
   useEffect(() => {
     if (!r || !address || !items.length) return
@@ -129,7 +130,7 @@ function DeliveryCheckout({ query }) {
     )
 
   const activeDay = days.find((d) => d.key === dayKey) ?? days[0]
-  const local = quote({ items: cart.items.map((i) => ({ base_price: i.basePrice, qty: i.qty })), settings, km: inRange ? km : null, tip: tipAmount })
+  const local = quote({ items: cart.items.map((i) => ({ base_price: i.basePrice, qty: i.qty, tax_pct: cart.taxRate(i.taxPct) })), settings, km: inRange ? km : null, tip: tipAmount })
   const q = serverQuote?.quote ?? local
   const [etaA, etaB] = etaMinutes(r, km)
   const testMode = config?.payments !== 'stripe'
@@ -386,8 +387,9 @@ function DeliveryCheckout({ query }) {
                   <li key={i.key} className="flex justify-between gap-3">
                     <span className="text-neutral-600">
                       <b className="text-ink">{i.qty}×</b> {i.name}
+                      {i.options?.length > 0 && <span className="block text-xs text-neutral-400">{i.options.map((o) => o.name).join(' · ')}</span>}
                     </span>
-                    <span className="font-semibold tabular-nums">{money(i.qty * cart.priceOf(i.basePrice))}</span>
+                    <span className="font-semibold tabular-nums">{money(i.qty * cart.itemPrice(i))}</span>
                   </li>
                 ))}
               </ul>
@@ -420,6 +422,7 @@ function DeliveryCheckout({ query }) {
                   <dd className="tabular-nums">{money(q.total)}</dd>
                 </div>
               </dl>
+              <TaxBreakdown q={q} />
               <p className="mt-2 text-[11px] text-neutral-400">
                 Envío: {money(settings.delivery_base_fee)} + {money(settings.delivery_fee_per_km)}/km desde el restaurante.
               </p>
@@ -540,7 +543,7 @@ function DineInCheckout() {
     )
 
   const q = quote({
-    items: cart.items.map((i) => ({ base_price: i.basePrice, qty: i.qty })),
+    items: cart.items.map((i) => ({ base_price: i.basePrice, qty: i.qty, tax_pct: cart.taxRate(i.taxPct) })),
     settings: { ...settings, price_markup_pct: settings.dine_in_markup_pct, restaurant_commission_pct: settings.dine_in_commission_pct },
     km: null,
     tip: 0,
@@ -558,7 +561,7 @@ function DineInCheckout() {
         order_type: 'dine_in',
         table_code: cart.table.code,
         restaurant_id: r.id,
-        items: cart.items.map((i) => ({ dish_id: i.dishId, qty: i.qty, note: i.note })),
+        items: cart.items.map((i) => ({ dish_id: i.dishId, qty: i.qty, note: i.note, options: i.optionIds ?? [] })),
         customer,
         payment_method: payment,
       })
@@ -605,9 +608,10 @@ function DineInCheckout() {
               <li key={i.key} className="flex justify-between gap-3">
                 <span className="text-neutral-600">
                   <b className="text-ink">{i.qty}×</b> {i.name}
+                  {i.options?.length > 0 && <span className="block text-xs text-neutral-400">{i.options.map((o) => o.name).join(' · ')}</span>}
                   {i.note && <span className="block text-xs text-neutral-400">“{i.note}”</span>}
                 </span>
-                <span className="font-semibold tabular-nums">{money(i.qty * cart.priceOf(i.basePrice))}</span>
+                <span className="font-semibold tabular-nums">{money(i.qty * cart.itemPrice(i))}</span>
               </li>
             ))}
           </ul>
@@ -615,6 +619,7 @@ function DineInCheckout() {
             <span>Total</span>
             <span className="tabular-nums">{money(q.total)}</span>
           </div>
+          <TaxBreakdown q={q} />
         </section>
 
         <section className="rounded-3xl bg-white p-5 ring-1 ring-neutral-200/70">
@@ -674,3 +679,4 @@ function DineInCheckout() {
     </div>
   )
 }
+

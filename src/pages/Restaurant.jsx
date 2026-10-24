@@ -17,6 +17,7 @@ import { compact, km as fmtKm, money, rating } from '../lib/format.js'
 import { DAY_SHORT, formatHour, relativeDay, todayWeekday, weekdayScheduleText } from '../lib/time.js'
 import { deliveryDistanceKm, deliveryFee, etaMinutes, inDeliveryRange } from '../lib/pricing.js'
 import { goBack, navigate } from '../lib/router.js'
+import { dishAllergens, minBasePrice, weekdayScheduleSummary } from '../lib/dishes.js'
 
 export default function Restaurant({ slug }) {
   const { data: r, error, loading, reload } = useAsync(() => getRestaurant(slug), [slug])
@@ -39,7 +40,7 @@ export default function Restaurant({ slug }) {
   const sections = useMemo(
     () =>
       r?.menu
-        .map((s) => ({ ...s, dishes: s.dishes.filter((d) => d.available && !d.allergens.some((a) => excluded.includes(a))) }))
+        .map((s) => ({ ...s, dishes: s.dishes.filter((d) => d.available && !dishAllergens(d).some((a) => excluded.includes(a))) }))
         .filter((s) => s.dishes.length) ?? [],
     [r, excluded],
   )
@@ -73,9 +74,9 @@ export default function Restaurant({ slug }) {
   const tz = settings.timezone
   const qtyInCart = (dishId) => (cart.restaurantId === r.id ? cart.items.filter((i) => i.dishId === dishId).reduce((n, i) => n + i.qty, 0) : 0)
 
-  const handleAdd = (dish, qty, note) => {
-    if (cart.restaurantId && cart.restaurantId !== r.id && cart.items.length) return setPending({ dish, qty, note })
-    cart.add(r, dish, qty, note)
+  const handleAdd = (dish, qty, note, selection = null) => {
+    if (cart.restaurantId && cart.restaurantId !== r.id && cart.items.length) return setPending({ dish, qty, note, selection })
+    cart.add(r, dish, qty, note, selection)
   }
 
   return (
@@ -221,10 +222,10 @@ export default function Restaurant({ slug }) {
                   <DishCard
                     key={d.id}
                     dish={d}
-                    price={cart.priceOf(d.price, r.id)}
+                    price={cart.priceOf(minBasePrice(d), r.id, d.tax_pct)}
                     inCart={qtyInCart(d.id)}
                     onOpen={() => setSelected(d)}
-                    onQuickAdd={r.accepting_orders && (!dineIn || status.open) ? () => handleAdd(d, 1, '') : null}
+                    onQuickAdd={r.accepting_orders && (!dineIn || status.open) ? () => (d.groups.length ? setSelected(d) : handleAdd(d, 1, '')) : null}
                   />
                 ))}
               </div>
@@ -286,12 +287,12 @@ export default function Restaurant({ slug }) {
       <DishSheet
         dish={selected}
         restaurant={r}
-        price={selected ? cart.priceOf(selected.price, r.id) : 0}
+        priceOf={(base) => cart.priceOf(base, r.id, selected?.tax_pct)}
         closed={!status.open && !dineIn}
         canOrder={r.accepting_orders && (!dineIn || status.open)}
         onClose={() => setSelected(null)}
-        onAdd={(qty, note) => {
-          handleAdd(selected, qty, note)
+        onAdd={(qty, note, selection) => {
+          handleAdd(selected, qty, note, selection)
           setSelected(null)
         }}
       />
@@ -341,7 +342,7 @@ export default function Restaurant({ slug }) {
             <button
               onClick={() => {
                 cart.clear()
-                cart.add(r, pending.dish, pending.qty, pending.note)
+                cart.add(r, pending.dish, pending.qty, pending.note, pending.selection)
                 setPending(null)
               }}
               className="flex-1 rounded-2xl bg-brand-600 py-3.5 font-bold text-white"
@@ -423,34 +424,46 @@ function Stat({ children, label }) {
 
 function DishCard({ dish: d, price, inCart, onOpen, onQuickAdd }) {
   const popular = d.orders_count >= 1000
+  const allergens = dishAllergens(d)
+  const schedule = weekdayScheduleSummary(d.schedule)
+  const variable = d.groups.some((g) => g.options.some((o) => Number(o.price_delta) !== 0) || (Number(g.extra_price) > 0 && g.free_select != null))
   return (
     <article className="group relative flex gap-3 rounded-3xl bg-white p-3 ring-1 ring-neutral-200/70 transition hover:shadow-lg hover:shadow-neutral-900/5">
       <button onClick={onOpen} className="absolute inset-0 z-0 rounded-3xl" aria-label={`Ver ${d.name}`} />
       <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 flex-col">
         <div className="flex flex-wrap gap-1">
           {popular && <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-700">🔥 Top ventas</span>}
+          {schedule && <span className="rounded-full bg-ink px-2 py-0.5 text-[11px] font-bold text-white">🕒 {schedule}</span>}
+          {d.groups.length > 0 && <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[11px] font-bold text-violet-700">✨ Personalizable</span>}
           {DISH_TAGS.filter((t) => d.tags.includes(t.id)).map((t) => (
             <span key={t.id} className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${t.cls}`}>
               {t.label}
             </span>
           ))}
         </div>
-        <h3 className="mt-1 leading-tight font-extrabold tracking-tight">{d.name}</h3>
+        <h3 className="mt-1 leading-tight font-extrabold tracking-tight">
+          {d.code && <span className="mr-1 text-neutral-400">{d.code}.</span>}
+          {d.name}
+        </h3>
+        {d.name_en && <p className="text-[12px] text-neutral-400 italic">{d.name_en}</p>}
         <p className="mt-1 line-clamp-2 text-[13px] leading-snug text-neutral-500">{d.description}</p>
         <p className="mt-1.5 text-[11px] font-medium text-neutral-400">
           {[d.portion, d.kcal && `${d.kcal} kcal`, d.orders_count > 0 && `${compact(d.orders_count)} pedidos`].filter(Boolean).join(' · ')}
         </p>
         <div className="mt-auto flex items-center justify-between gap-2 pt-2">
-          <span className="text-base font-extrabold">{money(price)}</span>
-          <AllergenChips allergens={d.allergens} />
+          <span className="text-base font-extrabold">
+            {variable && <span className="text-xs font-semibold text-neutral-400">desde </span>}
+            {money(price)}
+          </span>
+          {allergens.length || !d.groups.length ? <AllergenChips allergens={allergens} /> : null}
         </div>
       </div>
-      <div className="relative z-10 shrink-0">
-        <SafeImg src={d.image_url} alt={d.name} className="pointer-events-none size-28 rounded-2xl sm:size-32" />
+      <div className={`relative z-10 shrink-0 ${d.image_url ? '' : 'flex w-10 items-end'}`}>
+        {d.image_url && <SafeImg src={d.image_url} alt={d.name} className="pointer-events-none size-28 rounded-2xl sm:size-32" />}
         {onQuickAdd && (
           <button
             onClick={onQuickAdd}
-            className={`absolute -right-1 -bottom-1 grid h-9 min-w-9 place-items-center rounded-full px-2 text-sm font-bold text-white shadow-lg ring-4 ring-white transition active:scale-90 ${inCart ? 'bg-ink' : 'bg-brand-600'}`}
+            className={`${d.image_url ? 'absolute -right-1 -bottom-1' : ''} grid h-9 min-w-9 place-items-center rounded-full px-2 text-sm font-bold text-white shadow-lg ring-4 ring-white transition active:scale-90 ${inCart ? 'bg-ink' : 'bg-brand-600'}`}
             aria-label={`Añadir ${d.name}`}
           >
             {inCart ? `${inCart}` : <Icon name="plus" className="size-5" strokeWidth={2.6} />}
