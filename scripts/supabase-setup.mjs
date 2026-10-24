@@ -7,7 +7,7 @@
 //   · migrations: aplica supabase/migrations/*.sql que falten (registro en rabeat_meta.migrations)
 //   · seed:       carga supabase/seed.sql si no hay restaurantes
 //   · users:      crea/actualiza los usuarios de supabase/users.local.json (no se sube a GitHub)
-//   · auth:       URL del sitio, alta sin confirmación y SMTP de Gmail para los emails de acceso
+//   · auth:       URL del sitio, alta sin confirmación y SMTP (Resend o Gmail) para los emails de acceso
 //   · secrets:    sube los valores de supabase/.env a los secretos de las funciones
 //   · functions:  despliega las Edge Functions con la CLI de Supabase
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
@@ -119,13 +119,19 @@ async function auth() {
     mailer_autoconfirm: true,
     password_min_length: 8,
   }
-  if (ENV.SMTP_USER && ENV.SMTP_PASS) {
+  // Resend también ofrece SMTP (usuario «resend», contraseña = API key)
+  const smtp = ENV.RESEND_API_KEY
+    ? { host: 'smtp.resend.com', port: '465', user: 'resend', pass: ENV.RESEND_API_KEY }
+    : ENV.SMTP_USER && ENV.SMTP_PASS
+      ? { host: ENV.SMTP_HOST || 'smtp.gmail.com', port: ENV.SMTP_PORT || '465', user: ENV.SMTP_USER, pass: ENV.SMTP_PASS }
+      : null
+  if (smtp) {
     Object.assign(config, {
-      smtp_host: ENV.SMTP_HOST || 'smtp.gmail.com',
-      smtp_port: ENV.SMTP_PORT || '465',
-      smtp_user: ENV.SMTP_USER,
-      smtp_pass: ENV.SMTP_PASS,
-      smtp_admin_email: ENV.SMTP_USER,
+      smtp_host: smtp.host,
+      smtp_port: smtp.port,
+      smtp_user: smtp.user,
+      smtp_pass: smtp.pass,
+      smtp_admin_email: (ENV.MAIL_FROM?.match(/<([^>]+)>/)?.[1] ?? ENV.MAIL_FROM) || ENV.SMTP_USER,
       smtp_sender_name: 'rabeat',
       mailer_subjects_recovery: 'Restablece tu contraseña de rabeat',
       mailer_templates_recovery_content:
@@ -133,7 +139,7 @@ async function auth() {
     })
   }
   await api('/config/auth', { method: 'PATCH', body: config })
-  log(`auth configurado (${config.smtp_host ? 'con SMTP de Gmail' : 'sin SMTP propio'})`)
+  log(`auth configurado (${config.smtp_host ? `con SMTP ${config.smtp_host}` : 'sin SMTP propio'})`)
 }
 
 async function secrets() {

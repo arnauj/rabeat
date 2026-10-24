@@ -1,7 +1,28 @@
 import nodemailer from 'npm:nodemailer@6.9.16'
 import { env, siteUrl } from './http.ts'
 
-export const emailEnabled = () => Boolean(env('SMTP_USER') && env('SMTP_PASS'))
+// Resend (API por HTTPS) si hay RESEND_API_KEY; si no, SMTP (p. ej. Gmail)
+const resendKey = () => env('RESEND_API_KEY')
+export const emailEnabled = () => Boolean(resendKey() || (env('SMTP_USER') && env('SMTP_PASS')))
+const sender = () => env('MAIL_FROM', `rabeat <${env('SMTP_USER')}>`)
+
+type Mail = { to: string; bcc?: string[]; subject: string; html: string }
+
+async function deliver(mail: Mail) {
+  if (resendKey()) {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${resendKey()}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: sender(), ...mail }),
+      signal: AbortSignal.timeout(15_000),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.message ?? `Resend respondió ${res.status}`)
+    return { messageId: String(data.id ?? ''), response: 'resend' }
+  }
+  const info = await transport().sendMail({ from: sender(), ...mail })
+  return { messageId: info.messageId, response: info.response }
+}
 
 let transporter: ReturnType<typeof nodemailer.createTransport> | null = null
 
@@ -22,9 +43,8 @@ function transport() {
 
 // Envío que lanza el error (para la prueba de configuración del panel)
 export async function sendEmailStrict(to: string, subject: string, html: string) {
-  if (!emailEnabled()) throw new Error('El email no está configurado: faltan SMTP_USER y SMTP_PASS')
-  const info = await transport().sendMail({ from: env('MAIL_FROM', `rabeat <${env('SMTP_USER')}>`), to, subject, html })
-  return { messageId: info.messageId, response: info.response }
+  if (!emailEnabled()) throw new Error('El email no está configurado: falta RESEND_API_KEY (o SMTP_USER y SMTP_PASS)')
+  return await deliver({ to, subject, html })
 }
 
 export async function sendEmail(to: string | string[], subject: string, html: string) {
@@ -35,13 +55,9 @@ export async function sendEmail(to: string | string[], subject: string, html: st
     return false
   }
   try {
-    await transport().sendMail({
-      from: env('MAIL_FROM', `rabeat <${env('SMTP_USER')}>`),
-      to: recipients.length === 1 ? recipients[0] : env('SMTP_USER'),
-      bcc: recipients.length > 1 ? recipients : undefined,
-      subject,
-      html,
-    })
+    // Varios destinatarios: en copia oculta, para que no vean los emails de los demás
+    const from = sender().match(/<([^>]+)>/)?.[1] ?? sender()
+    await deliver(recipients.length === 1 ? { to: recipients[0], subject, html } : { to: from, bcc: recipients, subject, html })
     return true
   } catch (e) {
     console.error('Error enviando email', e)

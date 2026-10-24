@@ -36,9 +36,11 @@ Mientras no haya claves de Stripe, el pago con tarjeta funciona en **modo prueba
    `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed` y `checkout.session.expired`.
 3. Ejecuta `SUPABASE_ACCESS_TOKEN=sbp_… npm run supabase:secrets`.
 
-## Emails (Gmail)
+## Emails (Resend)
 
-Al confirmarse un pedido se envía email al cliente (con enlace de seguimiento), a los repartidores activos y al restaurante. También al asignarse repartidor, al entregarse y si se cancela. Para activarlos, pon `SMTP_PASS` (contraseña de aplicación de Gmail) en `supabase/.env` y ejecuta `npm run supabase:secrets`.
+Al confirmarse un pedido se envía email al cliente (con enlace de seguimiento), a los repartidores activos y al restaurante. También al asignarse repartidor, al entregarse y si se cancela. Salen desde `noreply@rabeat.eu` a través de [Resend](https://resend.com) (API por HTTPS: Supabase bloquea el SMTP de Hostalia). Para activarlos, pon `RESEND_API_KEY` en `supabase/.env` y ejecuta `npm run supabase:secrets`. El dominio `rabeat.eu` debe estar verificado en Resend (registros DNS en Hostalia). Se puede probar en **Panel → Comisiones y envío → Emails**.
+
+Como alternativa, sin `RESEND_API_KEY` se usa SMTP (`SMTP_USER`/`SMTP_PASS`, p. ej. Gmail con contraseña de aplicación).
 
 ## Desarrollo
 
