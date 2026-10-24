@@ -11,10 +11,11 @@ const tidy = (s) => s.replace(/\s+Con\s+/g, ' con ').replace(/\s+With\s+/g, ' wi
 const out = ['-- Oishi (Arrecife) · generado con scripts/gen-oishi.mjs', 'begin;']
 const R = `(select id from public.restaurants where slug = 'oishi')`
 
-out.push(`insert into public.restaurants (slug, name, category, cuisine, description, cover_url, address, lat, lng, phone, min_order, prep_min, prep_max, active, accepting_orders)
+// La portada es el logo del restaurante (fondo negro)
+out.push(`insert into public.restaurants (slug, name, category, cuisine, description, cover_url, cover_is_logo, cover_bg, address, lat, lng, phone, min_order, prep_min, prep_max, active, accepting_orders)
 values ('oishi', 'Oishi', 'sushi', 'Japonesa · China · Sushi',
   'Sabores asiáticos auténticos y sushi preparado al momento, con una amplia variedad de platos llenos de frescura y tradición.',
-  ${q(COVER)}, 'C. Juan de Quesada, 19, Arrecife (Lanzarote)', 28.9625395, -13.5433257, '928 50 56 89', 20, 20, 30, true, true)
+  ${q(COVER)}, ${COVER ? 'true' : 'false'}, '#000000', 'C. Juan de Quesada, 19, Arrecife (Lanzarote)', 28.9625395, -13.5433257, '928 50 56 89', 20, 20, 30, true, true)
 on conflict (slug) do nothing;`)
 
 // Lunes cerrado; de martes a domingo 12:00–16:00 y 19:00–23:00

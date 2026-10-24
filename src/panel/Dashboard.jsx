@@ -1,5 +1,5 @@
 import Icon from '../components/Icon.jsx'
-import { ErrorBox, Loading, SafeImg, Toggle, useNow, useRestaurantStatus, useToast } from '../components/ui.jsx'
+import { ErrorBox, Loading, SafeImg, Toggle, Cover, useNow, useRestaurantStatus, useToast } from '../components/ui.jsx'
 import { useAuth } from '../lib/auth.jsx'
 import { useSettings } from '../lib/settings.jsx'
 import { useAsync } from '../lib/useAsync.js'
@@ -114,7 +114,7 @@ function QuickRestaurant({ restaurant: r, onChange }) {
   }
   return (
     <div className="flex items-center gap-3 rounded-3xl bg-white p-3 ring-1 ring-neutral-200/70">
-      <SafeImg src={r.cover_url} alt="" className="size-14 shrink-0 rounded-2xl" />
+      <Cover restaurant={r} variant="thumb" className="size-14 shrink-0 rounded-2xl" />
       <a href={`#/panel/restaurantes/${r.id}`} className="min-w-0 flex-1">
         <p className="truncate font-extrabold">{r.name}</p>
         <p className="truncate text-xs text-neutral-500">{r.active ? status.label : 'Oculto en la app'}</p>

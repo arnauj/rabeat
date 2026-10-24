@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import TopBar from '../components/TopBar.jsx'
 import Icon from '../components/Icon.jsx'
-import { Button, Card, Field, Loading, SafeImg, SectionTitle, useToast } from '../components/ui.jsx'
+import { Button, Card, Cover, Field, Loading, SectionTitle, useToast } from '../components/ui.jsx'
 import { useAuth } from '../lib/auth.jsx'
 import { useLocation } from '../lib/location.jsx'
 import { useAsync } from '../lib/useAsync.js'
@@ -27,7 +27,7 @@ export default function Account() {
 
   const { data: favorites } = useAsync(
     async () =>
-      user ? unwrap(await supabase.from('favorites').select('restaurant:restaurants(slug, name, cover_url, cuisine)').eq('user_id', user.id)) : [],
+      user ? unwrap(await supabase.from('favorites').select('restaurant:restaurants(slug, name, cover_url, cover_is_logo, cover_bg, cuisine)').eq('user_id', user.id)) : [],
     [user?.id],
   )
 
@@ -99,7 +99,7 @@ export default function Account() {
             <div className="grid grid-cols-2 gap-3">
               {favorites.map(({ restaurant: r }) => (
                 <a key={r.slug} href={`#/r/${r.slug}`} className="overflow-hidden rounded-2xl bg-white ring-1 ring-neutral-200/70">
-                  <SafeImg src={r.cover_url} alt={r.name} className="aspect-[16/10] w-full" />
+                  <Cover restaurant={r} className="aspect-[16/10] w-full" />
                   <p className="truncate p-2 text-sm font-bold">{r.name}</p>
                 </a>
               ))}

@@ -1,5 +1,5 @@
 import Icon from './Icon.jsx'
-import { SafeImg, StatusPill, useRestaurantStatus } from './ui.jsx'
+import { Cover, StatusPill, useRestaurantStatus } from './ui.jsx'
 import { compact, km as fmtKm, money, rating } from '../lib/format.js'
 import { deliveryFee, etaMinutes } from '../lib/pricing.js'
 import { useSettings } from '../lib/settings.jsx'
@@ -16,7 +16,7 @@ export default function RestaurantCard({ restaurant: r, now, km, outOfRange = fa
       className="group block overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-neutral-200/70 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-neutral-900/5"
     >
       <div className="relative aspect-[16/9] overflow-hidden">
-        <SafeImg src={r.cover_url} alt={r.name} className={`size-full transition duration-500 group-hover:scale-105 ${available ? '' : 'grayscale-[70%]'}`} />
+        <Cover restaurant={r} className={`size-full transition duration-500 group-hover:scale-105 ${available ? '' : 'grayscale-[70%]'}`} />
         <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
         <div className="absolute top-3 left-3">
           <StatusPill restaurant={r} now={now} />

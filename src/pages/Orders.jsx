@@ -1,6 +1,6 @@
 import TopBar from '../components/TopBar.jsx'
 import Icon from '../components/Icon.jsx'
-import { Loading, SafeImg, SectionTitle } from '../components/ui.jsx'
+import { Cover, Loading, SectionTitle } from '../components/ui.jsx'
 import { useCart } from '../lib/cart.jsx'
 import { useAuth } from '../lib/auth.jsx'
 import { useSettings } from '../lib/settings.jsx'
@@ -22,7 +22,7 @@ export default function Orders() {
       const mine = unwrap(
         await supabase
           .from('orders')
-          .select('tracking_token, code, status, total, created_at, scheduled_for, order_type, table_name, items:order_items(qty), restaurant:restaurants(name, cover_url)')
+          .select('tracking_token, code, status, total, created_at, scheduled_for, order_type, table_name, items:order_items(qty), restaurant:restaurants(name, cover_url, cover_is_logo, cover_bg)')
           .eq('customer_id', user.id)
           .order('created_at', { ascending: false })
           .limit(50),
@@ -61,7 +61,7 @@ export default function Orders() {
               return (
                 <li key={o.token}>
                   <a href={`#/pedido/${o.token}`} className="flex items-center gap-3 rounded-3xl bg-white p-3 ring-1 ring-neutral-200/70 transition hover:shadow-lg">
-                    <SafeImg src={o.restaurant.cover_url} alt="" className="size-16 shrink-0 rounded-2xl" />
+                    <Cover restaurant={o.restaurant} variant="thumb" className="size-16 shrink-0 rounded-2xl" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-extrabold">{o.restaurant.name}</p>
                       <p className="truncate text-xs text-neutral-500">

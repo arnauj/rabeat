@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { Button, ErrorBox, Field, Loading, SafeImg, Sheet, SheetHeader, useNow, useRestaurantStatus, useToast } from '../components/ui.jsx'
+import { Button, ErrorBox, Field, Loading, Cover, Sheet, SheetHeader, useNow, useRestaurantStatus, useToast } from '../components/ui.jsx'
 import { useAuth } from '../lib/auth.jsx'
 import { useAsync } from '../lib/useAsync.js'
 import { myRestaurants } from '../lib/data.js'
@@ -61,7 +61,7 @@ function Row({ restaurant: r }) {
   const status = useRestaurantStatus(r, now)
   return (
     <a href={`#/panel/restaurantes/${r.id}`} className="flex gap-3 rounded-3xl bg-white p-3 ring-1 ring-neutral-200/70 transition hover:shadow-lg">
-      <SafeImg src={r.cover_url} alt="" className="size-20 shrink-0 rounded-2xl" />
+      <Cover restaurant={r} variant="thumb" className="size-20 shrink-0 rounded-2xl" />
       <div className="min-w-0 flex-1 py-0.5">
         <p className="truncate font-extrabold">{r.name}</p>
         <p className="truncate text-xs text-neutral-500">{categoryLabel(r.category)} · {r.address || 'Sin dirección'}</p>

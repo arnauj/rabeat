@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { AddressForm } from '../components/AddressSheet.jsx'
-import { Button, Card, ErrorBox, Field, Loading, SafeImg, Select, Sheet, TextArea, Toggle, useToast } from '../components/ui.jsx'
+import { Button, Card, Cover, ErrorBox, Field, Loading, SafeImg, Select, Sheet, TextArea, Toggle, useToast } from '../components/ui.jsx'
 import { useAuth } from '../lib/auth.jsx'
 import { useAsync } from '../lib/useAsync.js'
 import { getRestaurant, uploadImage } from '../lib/data.js'
@@ -183,7 +183,7 @@ function InfoForm({ restaurant: r, onSaved }) {
 
       <div className="space-y-4">
         <Card title="Foto de portada" icon="image">
-          <SafeImg src={form.cover_url} alt="" className="aspect-[16/9] w-full rounded-2xl" />
+          <Cover restaurant={{ ...form, name: form.name }} className="aspect-[16/9] w-full rounded-2xl" />
           <div className="mt-3 flex gap-2">
             <label className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-2xl bg-ink py-3 text-sm font-bold text-white">
               {uploading ? 'Subiendo…' : 'Subir foto'}
@@ -191,6 +191,20 @@ function InfoForm({ restaurant: r, onSaved }) {
             </label>
           </div>
           <Field className="mt-3" placeholder="…o pega la URL de una imagen" value={form.cover_url ?? ''} onChange={set('cover_url')} />
+          <div className="mt-4">
+            <Toggle
+              checked={form.cover_is_logo}
+              onChange={set('cover_is_logo')}
+              label="La portada es un logo"
+              description="Se muestra entera, sin recortar, sobre un color de fondo"
+            />
+            {form.cover_is_logo && (
+              <label className="mt-3 flex items-center gap-3 text-sm font-bold">
+                <input type="color" value={form.cover_bg} onChange={set('cover_bg')} className="size-10 cursor-pointer rounded-xl" aria-label="Color de fondo" />
+                Color de fondo
+              </label>
+            )}
+          </div>
         </Card>
 
         <Card title="Visibilidad" icon="eye">
@@ -250,6 +264,8 @@ function pick(r) {
     phone: r.phone,
     email: r.email,
     cover_url: r.cover_url,
+    cover_is_logo: r.cover_is_logo ?? false,
+    cover_bg: r.cover_bg ?? '#111111',
     address: r.address,
     lat: r.lat,
     lng: r.lng,

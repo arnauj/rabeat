@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { Field, Loading, SafeImg, useNow, useRestaurantStatus, useToast } from '../components/ui.jsx'
+import { Field, Loading, SafeImg, Cover, useNow, useRestaurantStatus, useToast } from '../components/ui.jsx'
 import { useCart } from '../lib/cart.jsx'
 import { useAuth } from '../lib/auth.jsx'
 import { useLocation } from '../lib/location.jsx'
@@ -374,7 +374,7 @@ function DeliveryCheckout({ query }) {
           <div className="space-y-4 lg:sticky lg:top-24">
             <div className="rounded-3xl bg-white p-5 ring-1 ring-neutral-200/70">
               <div className="flex items-center gap-3">
-                <SafeImg src={r.cover_url} alt="" className="size-12 rounded-2xl" />
+                <Cover restaurant={r} variant="thumb" className="size-12 rounded-2xl" />
                 <div>
                   <p className="font-extrabold">{r.name}</p>
                   <p className="text-xs text-neutral-500">

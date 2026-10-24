@@ -1,9 +1,9 @@
 -- Oishi (Arrecife) · generado con scripts/gen-oishi.mjs
 begin;
-insert into public.restaurants (slug, name, category, cuisine, description, cover_url, address, lat, lng, phone, min_order, prep_min, prep_max, active, accepting_orders)
+insert into public.restaurants (slug, name, category, cuisine, description, cover_url, cover_is_logo, cover_bg, address, lat, lng, phone, min_order, prep_min, prep_max, active, accepting_orders)
 values ('oishi', 'Oishi', 'sushi', 'Japonesa · China · Sushi',
   'Sabores asiáticos auténticos y sushi preparado al momento, con una amplia variedad de platos llenos de frescura y tradición.',
-  'https://dodvqylxgqxxfgsakalo.supabase.co/storage/v1/object/public/images/imports/oishi-cover.jpg', 'C. Juan de Quesada, 19, Arrecife (Lanzarote)', 28.9625395, -13.5433257, '928 50 56 89', 20, 20, 30, true, true)
+  'https://dodvqylxgqxxfgsakalo.supabase.co/storage/v1/object/public/images/imports/oishi-logo.jpg', true, '#000000', 'C. Juan de Quesada, 19, Arrecife (Lanzarote)', 28.9625395, -13.5433257, '928 50 56 89', 20, 20, 30, true, true)
 on conflict (slug) do nothing;
 insert into public.opening_hours (restaurant_id, weekday, opens, closes) values ((select id from public.restaurants where slug = 'oishi'), 2, '12:00', '16:00'), ((select id from public.restaurants where slug = 'oishi'), 2, '19:00', '23:00');
 insert into public.opening_hours (restaurant_id, weekday, opens, closes) values ((select id from public.restaurants where slug = 'oishi'), 3, '12:00', '16:00'), ((select id from public.restaurants where slug = 'oishi'), 3, '19:00', '23:00');

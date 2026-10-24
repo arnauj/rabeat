@@ -315,3 +315,19 @@ export function ToastProvider({ children }) {
 }
 
 export const useToast = () => useContext(ToastContext)
+
+// Portada del restaurante: foto (recortada) o logo (entero sobre su color de fondo)
+export function Cover({ restaurant: r, variant = 'card', className = '', imgClassName = '' }) {
+  if (!r.cover_is_logo || !r.cover_url) return <SafeImg src={r.cover_url} alt={r.name} className={`${className} ${imgClassName}`} />
+  const fit = {
+    // En la cabecera el nombre va encima: el logo ocupa la franja superior
+    header: 'absolute inset-x-0 top-0 h-[34%] w-full px-16 pt-4 sm:h-[40%] sm:pt-6',
+    card: 'absolute inset-0 size-full p-[8%] pb-[14%]',
+    thumb: 'absolute inset-0 size-full p-[12%]',
+  }[variant]
+  return (
+    <div className={`relative overflow-hidden ${className}`} style={{ backgroundColor: r.cover_bg }} role="img" aria-label={r.name}>
+      <img src={r.cover_url} alt="" loading="lazy" className={`object-contain ${fit} ${imgClassName}`} />
+    </div>
+  )
+}
