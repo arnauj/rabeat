@@ -3,7 +3,7 @@ Comida a domicilio desde canarias.
 
 Web app de reparto de comida pensada primero para móvil: **React 19 + Vite + Tailwind CSS 4** en el frontend (publicado en GitHub Pages) y **Supabase** (Postgres, Auth, Storage, Realtime y Edge Functions) como backend.
 
-**Web:** https://arnauj.github.io/rabeat/
+**Web:** https://rabeat.eu
 
 ## Roles
 
