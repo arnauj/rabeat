@@ -20,7 +20,7 @@ const randomPassword = () => {
 
 export default function Users() {
   const { data, error, loading, reload } = useAsync(
-    async () => unwrap(await supabase.from('profiles').select('*, restaurants:restaurants(count)').order('created_at', { ascending: false })),
+    async () => unwrap(await supabase.from('profiles').select('*, restaurants:restaurants!restaurants_owner_id_fkey(count)').order('created_at', { ascending: false })),
     [],
   )
   const [role, setRole] = useState('')
