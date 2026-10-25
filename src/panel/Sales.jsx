@@ -56,7 +56,7 @@ export default function Sales() {
             <StatTile
               label="Comisión rabeat"
               value={`−${money(data.commission)}`}
-              hint={`${settings.restaurant_commission_pct}% domicilio · ${settings.dine_in_commission_pct}% mesa`}
+              hint="según la comisión de cada pedido"
             />
             <StatTile label="Neto a cobrar" value={money(data.payout)} accent hint={`incluye ${money(data.tax ?? 0)} de IGIC a declarar`} />
             <StatTile label="Ticket medio" value={money(data.avg_ticket)} />

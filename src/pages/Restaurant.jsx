@@ -33,7 +33,7 @@ export default function Restaurant({ slug }) {
 
   // Mantiene la cesta al día con precios y disponibilidad reales
   useEffect(() => {
-    if (r && cart.restaurantId === r.id) cart.sync(r.dishes)
+    if (r && cart.restaurantId === r.id) cart.sync(r.dishes, r)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [r])
 
@@ -222,7 +222,7 @@ export default function Restaurant({ slug }) {
                   <DishCard
                     key={d.id}
                     dish={d}
-                    price={cart.priceOf(minBasePrice(d), r.id, d.tax_pct)}
+                    price={cart.priceOf(minBasePrice(d), r, d.tax_pct)}
                     inCart={qtyInCart(d.id)}
                     onOpen={() => setSelected(d)}
                     onQuickAdd={r.accepting_orders && (!dineIn || status.open) ? () => (d.groups.length ? setSelected(d) : handleAdd(d, 1, '')) : null}
@@ -287,7 +287,7 @@ export default function Restaurant({ slug }) {
       <DishSheet
         dish={selected}
         restaurant={r}
-        priceOf={(base) => cart.priceOf(base, r.id, selected?.tax_pct)}
+        priceOf={(base) => cart.priceOf(base, r, selected?.tax_pct)}
         closed={!status.open && !dineIn}
         canOrder={r.accepting_orders && (!dineIn || status.open)}
         onClose={() => setSelected(null)}

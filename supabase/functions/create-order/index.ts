@@ -2,7 +2,7 @@
 import { adminClient, currentUser } from '../_shared/db.ts'
 import { handle, HttpError, json, siteUrl, trackingUrl } from '../_shared/http.ts'
 import { getStatus, isValidSlot } from '../_shared/hours.js'
-import { deliveryDistanceKm, grossPrice, inDeliveryRange, quote, resolveOptions, taxRate } from '../_shared/pricing.js'
+import { deliveryDistanceKm, grossPrice, inDeliveryRange, quote, ratesFor, resolveOptions, taxRate } from '../_shared/pricing.js'
 import { cents, onlineMethods, stripe, stripeEnabled } from '../_shared/stripe.ts'
 import { notifyOrder } from '../_shared/notify.ts'
 
@@ -84,9 +84,8 @@ Deno.serve(
         throw new HttpError(409, `Tu dirección está a ${km.toFixed(1)} km: el máximo de reparto es ${settings.delivery_max_km} km`)
     }
     // En mesa: comisión y recargo propios, sin envío ni propina para repartidor
-    const pricing = dineIn
-      ? { ...settings, restaurant_commission_pct: settings.dine_in_commission_pct, price_markup_pct: settings.dine_in_markup_pct }
-      : settings
+    // (cada restaurante puede tener los suyos; si no, los generales)
+    const pricing = ratesFor(settings, restaurant, dineIn)
 
     // --- Promoción
     let promo = null

@@ -10,7 +10,7 @@ import { getRestaurant } from '../lib/data.js'
 import { callFunction } from '../lib/supabase.js'
 import { km as fmtKm, money } from '../lib/format.js'
 import { deliverySlots, formatHour, groupSlotsByDay, slotLabel } from '../lib/time.js'
-import { deliveryDistanceKm, etaMinutes, inDeliveryRange, quote } from '../lib/pricing.js'
+import { deliveryDistanceKm, etaMinutes, inDeliveryRange, quote, ratesFor } from '../lib/pricing.js'
 import { goBack, navigate } from '../lib/router.js'
 import TaxBreakdown from '../components/TaxBreakdown.jsx'
 
@@ -130,7 +130,7 @@ function DeliveryCheckout({ query }) {
     )
 
   const activeDay = days.find((d) => d.key === dayKey) ?? days[0]
-  const local = quote({ items: cart.items.map((i) => ({ base_price: i.basePrice, qty: i.qty, tax_pct: cart.taxRate(i.taxPct) })), settings, km: inRange ? km : null, tip: tipAmount })
+  const local = quote({ items: cart.items.map((i) => ({ base_price: i.basePrice, qty: i.qty, tax_pct: cart.taxRate(i.taxPct) })), settings: ratesFor(settings, r), km: inRange ? km : null, tip: tipAmount })
   const q = serverQuote?.quote ?? local
   const [etaA, etaB] = etaMinutes(r, km)
   const testMode = config?.payments !== 'stripe'
@@ -601,7 +601,7 @@ function DineInCheckout() {
 
   const q = quote({
     items: cart.items.map((i) => ({ base_price: i.basePrice, qty: i.qty, tax_pct: cart.taxRate(i.taxPct) })),
-    settings: { ...settings, price_markup_pct: settings.dine_in_markup_pct, restaurant_commission_pct: settings.dine_in_commission_pct },
+    settings: ratesFor(settings, r, true),
     km: null,
     tip: 0,
   })

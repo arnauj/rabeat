@@ -113,7 +113,7 @@ function QuickRestaurant({ restaurant: r, onChange }) {
     onChange()
   }
   return (
-    <div className="flex items-center gap-3 rounded-3xl bg-white p-3 ring-1 ring-neutral-200/70">
+    <div className="flex min-w-0 items-center gap-3 rounded-3xl bg-white p-3 ring-1 ring-neutral-200/70">
       <Cover restaurant={r} variant="thumb" className="size-14 shrink-0 rounded-2xl" />
       <a href={`#/panel/restaurantes/${r.id}`} className="min-w-0 flex-1">
         <p className="truncate font-extrabold">{r.name}</p>

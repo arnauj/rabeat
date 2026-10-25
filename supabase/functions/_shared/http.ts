@@ -30,7 +30,7 @@ export function handle(fn: (req: Request) => Promise<Response>) {
 export const env = (name: string, fallback = '') => Deno.env.get(name) ?? fallback
 
 export const siteUrl = () => {
-  const url = env('SITE_URL', 'https://rabeat.eu/')
+  const url = env('SITE_URL', 'https://www.rabeat.eu/')
   return url.endsWith('/') ? url : `${url}/`
 }
 export const trackingUrl = (token: string) => `${siteUrl()}#/pedido/${token}`

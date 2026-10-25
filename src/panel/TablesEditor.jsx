@@ -4,6 +4,7 @@ import Icon from '../components/Icon.jsx'
 import { Button, Card, ErrorBox, Field, Loading, Toggle, useToast } from '../components/ui.jsx'
 import { useAsync } from '../lib/useAsync.js'
 import { useSettings } from '../lib/settings.jsx'
+import { ratesFor } from '../lib/pricing.js'
 import { supabase, unwrap } from '../lib/supabase.js'
 
 // Enlace que abre la carta en modo mesa (usa la dirección actual de la web)
@@ -104,7 +105,7 @@ export default function TablesEditor({ restaurant: r }) {
         <p className="text-lg font-extrabold">🍽️ Pedidos desde la mesa</p>
         <p className="mt-1 text-sm text-white/75">
           Imprime un QR por mesa. Al escanearlo, el cliente ve la carta y pide sin dirección ni gastos de envío; el pedido te llega al
-          panel indicando la mesa. Comisión de rabeat en estos pedidos: <b>{settings.dine_in_commission_pct}%</b>.
+          panel indicando la mesa. Comisión de rabeat en estos pedidos: <b>{ratesFor(settings, r, true).restaurant_commission_pct}%</b>.
         </p>
       </div>
 

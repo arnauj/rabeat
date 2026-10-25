@@ -65,7 +65,7 @@ export default function Promos() {
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">
           {data.map((p) => (
-            <li key={p.code} className="flex items-center gap-3 rounded-3xl bg-white p-4 ring-1 ring-neutral-200/70">
+            <li key={p.code} className="flex min-w-0 items-center gap-3 rounded-3xl bg-white p-4 ring-1 ring-neutral-200/70">
               <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-brand-50 text-brand-600">
                 <Icon name="tag" />
               </span>

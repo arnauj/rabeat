@@ -46,7 +46,7 @@ export default function Payouts() {
             <StatTile label="Propinas a repartidores" value={money(data.tips)} />
           </div>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <StatTile label="Recargo en precios" value={money(data.markup)} hint={`${settings.price_markup_pct}% actual`} />
+            <StatTile label="Recargo en precios" value={money(data.markup)} hint={`${settings.price_markup_pct}% general`} />
             <StatTile label="Comisión restaurantes" value={money(data.commission)} hint={`${money(data.dine_in_commission ?? 0)} de pedidos en mesa`} />
             <StatTile label="Gastos de envío" value={money(data.delivery)} />
             <StatTile label="Descuentos (promos)" value={`−${money(data.discounts)}`} />

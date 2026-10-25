@@ -2,7 +2,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { getStatus, deliverySlots, isValidSlot, formatHour, statusLabel, zonedTime } from '../supabase/functions/_shared/hours.js'
-import { quote, customerPrice, deliveryFee, haversineKm, resolveOptions, grossPrice } from '../supabase/functions/_shared/pricing.js'
+import { quote, customerPrice, deliveryFee, haversineKm, resolveOptions, grossPrice, ratesFor } from '../supabase/functions/_shared/pricing.js'
 
 const tz = 'Atlantic/Canary'
 // 2026-10-24 es sábado; en octubre Canarias está en UTC+1 (verano) hasta el 25
@@ -85,3 +85,19 @@ test('opciones: mínimos, máximos y extras', () => {
 })
 
 const round = (n) => Math.round((n + Number.EPSILON) * 100) / 100
+
+test('comisión y recargo propios de cada restaurante', () => {
+  const s = { restaurant_commission_pct: 15, price_markup_pct: 8, dine_in_commission_pct: 5, dine_in_markup_pct: 0, igic_pct: 7 }
+  // Sin valores propios: los generales
+  assert.equal(ratesFor(s, {}).restaurant_commission_pct, 15)
+  assert.equal(ratesFor(s, { commission_pct: null }, true).restaurant_commission_pct, 5)
+  // Valores propios (0 también cuenta como propio)
+  const r = { commission_pct: 10, markup_pct: 0, dine_in_commission_pct: 3, dine_in_markup_pct: null }
+  assert.deepEqual([ratesFor(s, r).restaurant_commission_pct, ratesFor(s, r).price_markup_pct], [10, 0])
+  assert.deepEqual([ratesFor(s, r, true).restaurant_commission_pct, ratesFor(s, r, true).price_markup_pct], [3, 0])
+  // Se refleja en el pedido: 20 € sin recargo + 7 % IGIC, comisión 10 %
+  const q = quote({ items: [{ base_price: 20, qty: 1 }], settings: ratesFor(s, r), km: null })
+  assert.equal(q.subtotal, 21.4)
+  assert.equal(q.commission_amount, 2)
+  assert.equal(q.restaurant_payout, 19.4)
+})

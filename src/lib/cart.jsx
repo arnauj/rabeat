@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useReducer } from 'react'
 import { useSettings } from './settings.jsx'
-import { grossPrice } from './pricing.js'
+import { grossPrice, ratesFor } from './pricing.js'
 
 const STORAGE_KEY = 'rabeat:cart:v2'
 
-// restaurant: { id, slug, name }  ·  items: precios base del restaurante (el recargo se aplica al mostrar)
+// restaurant: { id, slug, name, markup_pct, dine_in_markup_pct } (recargos propios; null = el general)  ·  items: precios base del restaurante (el recargo se aplica al mostrar)
 // table: mesa del QR escaneado { code, name, restaurantId, restaurantSlug, restaurantName }
 const initial = { restaurant: null, items: [], orders: [], table: null }
 
@@ -16,6 +16,14 @@ function load() {
     return initial
   }
 }
+
+const cartRestaurant = (r) => ({
+  id: r.id,
+  slug: r.slug,
+  name: r.name,
+  markup_pct: r.markup_pct ?? null,
+  dine_in_markup_pct: r.dine_in_markup_pct ?? null,
+})
 
 function reducer(state, action) {
   switch (action.type) {
@@ -43,7 +51,7 @@ function reducer(state, action) {
               note,
             },
           ]
-      return { ...state, restaurant: { id: restaurant.id, slug: restaurant.slug, name: restaurant.name }, items }
+      return { ...state, restaurant: cartRestaurant(restaurant), items }
     }
     case 'setQty': {
       const items = state.items
@@ -61,7 +69,8 @@ function reducer(state, action) {
             : null
         })
         .filter(Boolean)
-      return { ...state, items, restaurant: items.length ? state.restaurant : null }
+      const restaurant = items.length ? (action.restaurant ? cartRestaurant(action.restaurant) : state.restaurant) : null
+      return { ...state, items, restaurant }
     }
     case 'clear':
       return { ...state, items: [], restaurant: null }
@@ -99,8 +108,12 @@ export function CartProvider({ children }) {
   const value = useMemo(() => {
     // En mesa se aplica el recargo propio de los pedidos en el local
     const isDineIn = (restaurantId) => Boolean(state.table && state.table.restaurantId === restaurantId)
-    const markupFor = (restaurantId) => (isDineIn(restaurantId) ? settings.dine_in_markup_pct ?? 0 : settings.price_markup_pct)
-    const cartMarkup = markupFor(state.restaurant?.id)
+    // Recargo del restaurante (propio o general); acepta el restaurante o su id
+    const markupFor = (x) => {
+      const r = x && typeof x === 'object' ? x : x == null || x === state.restaurant?.id ? state.restaurant : { id: x }
+      return ratesFor(settings, r, isDineIn(r?.id)).price_markup_pct
+    }
+    const cartMarkup = markupFor(state.restaurant)
     const count = state.items.reduce((n, i) => n + i.qty, 0)
     const rate = (taxPct) => Number(taxPct ?? settings.igic_pct ?? 0)
     const subtotal = state.items.reduce((n, i) => n + grossPrice(i.basePrice, cartMarkup, rate(i.taxPct)) * i.qty, 0)
@@ -112,19 +125,19 @@ export function CartProvider({ children }) {
       isDineIn,
       dineIn: isDineIn(state.restaurant?.id),
       // Precio final (con recargo e IGIC) de un importe sin impuestos
-      priceOf: (basePrice, restaurantId = state.restaurant?.id, taxPct = null) => grossPrice(basePrice, markupFor(restaurantId), rate(taxPct)),
+      priceOf: (basePrice, restaurant = state.restaurant, taxPct = null) => grossPrice(basePrice, markupFor(restaurant), rate(taxPct)),
       itemPrice: (item) => grossPrice(item.basePrice, cartMarkup, rate(item.taxPct)),
       taxRate: rate,
       setTable: (table) => dispatch({ type: 'setTable', table }),
       add: (restaurant, dish, qty = 1, note = '', selection = null) =>
         dispatch({ type: 'add', restaurant, dish, qty, note: note.trim(), selection }),
       setQty: (key, qty) => dispatch({ type: 'setQty', key, qty }),
-      sync: (dishes) => dispatch({ type: 'sync', dishes }),
+      sync: (dishes, restaurant) => dispatch({ type: 'sync', dishes, restaurant }),
       clear: () => dispatch({ type: 'clear' }),
       restore: ({ items, restaurant }) => dispatch({ type: 'restore', items, restaurant }),
       rememberOrder: (order) => dispatch({ type: 'rememberOrder', order }),
     }
-  }, [state, settings.price_markup_pct, settings.dine_in_markup_pct, settings.igic_pct])
+  }, [state, settings])
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>
 }

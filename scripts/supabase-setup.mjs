@@ -112,10 +112,10 @@ async function users() {
 }
 
 async function auth() {
-  const site = ENV.SITE_URL || 'https://rabeat.eu/'
+  const site = ENV.SITE_URL || 'https://www.rabeat.eu/'
   const config = {
     site_url: site,
-    uri_allow_list: [site, `${site}**`, 'https://www.rabeat.eu/**', 'https://arnauj.github.io/rabeat/**', 'http://localhost:5173/**', 'http://localhost:4173/**'].join(','),
+    uri_allow_list: [site, `${site}**`, 'https://rabeat.eu/**', 'https://arnauj.github.io/rabeat/**', 'http://localhost:5173/**', 'http://localhost:4173/**'].join(','),
     mailer_autoconfirm: true,
     password_min_length: 8,
   }
@@ -143,7 +143,7 @@ async function auth() {
 }
 
 async function secrets() {
-  const values = Object.entries({ SITE_URL: 'https://rabeat.eu/', ...ENV })
+  const values = Object.entries({ SITE_URL: 'https://www.rabeat.eu/', ...ENV })
     .filter(([k, v]) => v && !k.startsWith('SUPABASE_'))
     .map(([name, value]) => ({ name, value }))
   if (!values.length) return log('sin secretos que subir')

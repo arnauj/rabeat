@@ -37,6 +37,20 @@ export function promoDiscount(promo, subtotal) {
   return round2(Math.min(subtotal, promo.kind === 'percent' ? (subtotal * value) / 100 : value))
 }
 
+// Comisión y recargo de un restaurante: los suyos propios o, si no tiene, los generales.
+// Devuelve los ajustes listos para quote(); dineIn = pedido desde la mesa.
+export function ratesFor(settings, restaurant, dineIn = false) {
+  const pick = (own, general) => (own == null || own === '' ? Number(general ?? 0) : Number(own))
+  const r = restaurant ?? {}
+  return {
+    ...settings,
+    restaurant_commission_pct: dineIn
+      ? pick(r.dine_in_commission_pct, settings.dine_in_commission_pct)
+      : pick(r.commission_pct, settings.restaurant_commission_pct),
+    price_markup_pct: dineIn ? pick(r.dine_in_markup_pct, settings.dine_in_markup_pct) : pick(r.markup_pct, settings.price_markup_pct),
+  }
+}
+
 // Precio final que ve el cliente: precio sin impuestos + recargo + IGIC
 export const taxRate = (taxPct, settings) => Number(taxPct ?? settings.igic_pct ?? 0)
 export const grossPrice = (basePrice, markupPct, taxPct) => round2(customerPrice(basePrice, markupPct) * (1 + Number(taxPct) / 100))

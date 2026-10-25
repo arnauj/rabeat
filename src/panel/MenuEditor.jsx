@@ -6,14 +6,15 @@ import { useSettings } from '../lib/settings.jsx'
 import { uploadImage } from '../lib/data.js'
 import { supabase } from '../lib/supabase.js'
 import { money } from '../lib/format.js'
-import { grossPrice } from '../lib/pricing.js'
+import { grossPrice, ratesFor } from '../lib/pricing.js'
 import { ALLERGENS, ALLERGEN_KEYS } from '../data/allergens.js'
 import { DISH_TAGS } from '../data/categories.js'
 
 // Carta por categorías: alta, orden, precios, alérgenos y disponibilidad
 export default function MenuEditor({ restaurant: r, onChange }) {
   const toast = useToast()
-  const { settings } = useSettings()
+  const { settings: general } = useSettings()
+  const settings = ratesFor(general, r)
   const [editing, setEditing] = useState(null) // plato (o {} para nuevo)
   const [newCategory, setNewCategory] = useState('')
 
@@ -152,7 +153,8 @@ function IconBtn({ icon, label, onClick, disabled }) {
 function DishForm({ dish, restaurant: r, onClose, onSaved }) {
   const toast = useToast()
   const { profile } = useAuth()
-  const { settings } = useSettings()
+  const { settings: general } = useSettings()
+  const settings = ratesFor(general, r)
   const isNew = !dish.id
   const [form, setForm] = useState({
     name: dish.name ?? '',

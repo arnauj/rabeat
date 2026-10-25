@@ -60,7 +60,7 @@ function Row({ restaurant: r }) {
   const now = useNow()
   const status = useRestaurantStatus(r, now)
   return (
-    <a href={`#/panel/restaurantes/${r.id}`} className="flex gap-3 rounded-3xl bg-white p-3 ring-1 ring-neutral-200/70 transition hover:shadow-lg">
+    <a href={`#/panel/restaurantes/${r.id}`} className="flex min-w-0 gap-3 rounded-3xl bg-white p-3 ring-1 ring-neutral-200/70 transition hover:shadow-lg">
       <Cover restaurant={r} variant="thumb" className="size-20 shrink-0 rounded-2xl" />
       <div className="min-w-0 flex-1 py-0.5">
         <p className="truncate font-extrabold">{r.name}</p>

@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button, Card, Field, Select, useToast } from '../components/ui.jsx'
 import { useSettings } from '../lib/settings.jsx'
-import { callFunction, supabase } from '../lib/supabase.js'
+import { callFunction, supabase, unwrap } from '../lib/supabase.js'
 import { useAuth } from '../lib/auth.jsx'
 import { money } from '../lib/format.js'
 import { quote } from '../lib/pricing.js'
+import { useAsync } from '../lib/useAsync.js'
 import { PageTitle } from './Panel.jsx'
 
 const FIELDS = [
@@ -61,7 +62,8 @@ export default function SettingsPage() {
               hint="Los restaurantes suben sus precios sin IGIC. Se aplica a platos (salvo los que tengan otro tipo) y al envío."
             />
           </Card>
-          <Card title="Comisiones" icon="percent">
+          <Card title="Comisiones generales (a domicilio)" icon="percent">
+            <p className="-mt-2 mb-3 text-xs text-neutral-500">Se aplican a los restaurantes que no tienen comisión propia (más abajo).</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field
                 label="Comisión al restaurante (%)"
@@ -79,7 +81,7 @@ export default function SettingsPage() {
               />
             </div>
           </Card>
-          <Card title="Pedidos desde la mesa (QR)" icon="qr">
+          <Card title="Comisiones generales en mesa (QR)" icon="qr">
             <div className="grid gap-3 sm:grid-cols-2">
               <Field
                 label="Comisión al restaurante en mesa (%)"
@@ -98,6 +100,7 @@ export default function SettingsPage() {
             </div>
             <p className="mt-2 text-xs text-neutral-500">Los pedidos en mesa no tienen gastos de envío ni propina para repartidor.</p>
           </Card>
+          <RestaurantRates settings={settings} />
           <Card title="Gastos de envío por distancia" icon="bike">
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label="Tarifa base (€)" inputMode="decimal" value={form.delivery_base_fee} onChange={set('delivery_base_fee')} />
@@ -187,6 +190,99 @@ function EmailTest() {
         </Button>
       </div>
       {result && <p className={`mt-2 text-sm font-semibold ${result.ok ? 'text-emerald-700' : 'text-brand-600'}`}>{result.text}</p>}
+    </Card>
+  )
+}
+
+const RATE_FIELDS = [
+  ['commission_pct', 'Comisión', 'restaurant_commission_pct'],
+  ['markup_pct', 'Recargo', 'price_markup_pct'],
+  ['dine_in_commission_pct', 'Comisión mesa', 'dine_in_commission_pct'],
+  ['dine_in_markup_pct', 'Recargo mesa', 'dine_in_markup_pct'],
+]
+
+// Comisión y recargo propios de cada restaurante; vacío = el valor general
+function RestaurantRates({ settings }) {
+  const toast = useToast()
+  const [query, setQuery] = useState('')
+  const [edits, setEdits] = useState({})
+  const [saving, setSaving] = useState(false)
+  const { data: restaurants, reload } = useAsync(
+    async () => unwrap(await supabase.from('restaurants').select('id, name, active, ' + RATE_FIELDS.map(([k]) => k).join(', ')).order('name')),
+    [],
+  )
+  const value = (r, k) => (edits[r.id]?.[k] !== undefined ? edits[r.id][k] : r[k] == null ? '' : String(r[k]))
+  const set = (r, k, v) => setEdits((e) => ({ ...e, [r.id]: { ...e[r.id], [k]: v.replace(/[^\d.,]/g, '').slice(0, 6) } }))
+  const custom = (r) => RATE_FIELDS.some(([k]) => value(r, k) !== '')
+  const list = useMemo(
+    () => (restaurants ?? []).filter((r) => r.name.toLowerCase().includes(query.trim().toLowerCase())),
+    [restaurants, query],
+  )
+  const changed = Object.keys(edits).length > 0
+
+  const save = async () => {
+    const rows = Object.entries(edits).map(([id, patch]) => [
+      id,
+      Object.fromEntries(Object.entries(patch).map(([k, v]) => [k, v.trim() === '' ? null : Number(v.replace(',', '.'))])),
+    ])
+    if (rows.some(([, p]) => Object.values(p).some((v) => v !== null && !(v >= 0 && v <= 100))))
+      return toast('Los porcentajes deben estar entre 0 y 100', 'error')
+    setSaving(true)
+    for (const [id, patch] of rows) {
+      const { error } = await supabase.from('restaurants').update(patch).eq('id', id)
+      if (error) {
+        setSaving(false)
+        return toast(error.message, 'error')
+      }
+    }
+    setSaving(false)
+    setEdits({})
+    reload(true)
+    toast('Comisiones de los restaurantes guardadas: se aplican a los nuevos pedidos')
+  }
+
+  return (
+    <Card title="Comisiones por restaurante" icon="store">
+      <p className="-mt-2 mb-3 text-xs text-neutral-500">
+        Deja un campo vacío para usar el valor general (se muestra en gris). Lo que pongas aquí sustituye al general solo para ese restaurante.
+      </p>
+      {restaurants?.length > 6 && <Field placeholder="Buscar restaurante…" value={query} onChange={(e) => setQuery(e.target.value)} className="mb-3" />}
+      <div className="space-y-2">
+        {list.map((r) => (
+          <div key={r.id} className={`rounded-2xl p-3 ring-1 ${custom(r) ? 'bg-brand-50/50 ring-brand-200' : 'ring-neutral-200'}`}>
+            <p className="mb-2 flex items-center gap-2 text-sm font-extrabold">
+              {r.name}
+              {custom(r) && <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white">Propia</span>}
+              {!r.active && <span className="text-[11px] font-semibold text-neutral-400">oculto</span>}
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {RATE_FIELDS.map(([k, label, general]) => (
+                <label key={k} className="block">
+                  <span className="mb-1 block text-[11px] font-bold text-neutral-500">{label} %</span>
+                  <input
+                    inputMode="decimal"
+                    value={value(r, k)}
+                    placeholder={String(settings[general] ?? 0)}
+                    onChange={(e) => set(r, k, e.target.value)}
+                    className="w-full rounded-xl bg-neutral-100 px-3 py-2 text-base font-semibold outline-none placeholder:font-normal placeholder:text-neutral-400 focus:ring-2 focus:ring-brand-600"
+                    aria-label={`${label} de ${r.name}`}
+                  />
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {changed && (
+        <div className="mt-3 flex gap-2">
+          <Button loading={saving} onClick={save}>
+            Guardar comisiones
+          </Button>
+          <Button variant="soft" disabled={saving} onClick={() => setEdits({})}>
+            Descartar
+          </Button>
+        </div>
+      )}
     </Card>
   )
 }

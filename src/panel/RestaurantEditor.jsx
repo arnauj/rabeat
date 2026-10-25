@@ -3,6 +3,8 @@ import Icon from '../components/Icon.jsx'
 import { AddressForm } from '../components/AddressSheet.jsx'
 import { Button, Card, Cover, ErrorBox, Field, Loading, SafeImg, Select, Sheet, TextArea, Toggle, useToast } from '../components/ui.jsx'
 import { useAuth } from '../lib/auth.jsx'
+import { useSettings } from '../lib/settings.jsx'
+import { ratesFor } from '../lib/pricing.js'
 import { useAsync } from '../lib/useAsync.js'
 import { getRestaurant, uploadImage } from '../lib/data.js'
 import { callFunction, supabase, unwrap } from '../lib/supabase.js'
@@ -162,6 +164,7 @@ function InfoForm({ restaurant: r, onSaved }) {
         </Card>
 
         <OrderEmails restaurant={r} value={form.email} onChange={set('email')} />
+        <RatesInfo restaurant={r} isSuper={isSuper} />
 
         <Card title="Ubicación" icon="pin" action={<Button variant="soft" className="!py-2" onClick={() => setMapOpen(true)}>{form.lat == null ? 'Situar en el mapa' : 'Cambiar'}</Button>}>
           {form.lat == null ? (
@@ -329,6 +332,38 @@ function OrderEmails({ restaurant: r, value, onChange }) {
         </Button>
         {unsaved && <span className="text-xs font-semibold text-amber-700">Guarda los cambios para poder probarlo</span>}
       </div>
+    </Card>
+  )
+}
+
+// Comisión y recargo que aplica rabeat a este restaurante (los fija el superusuario)
+function RatesInfo({ restaurant: r, isSuper }) {
+  const { settings } = useSettings()
+  const home = ratesFor(settings, r)
+  const table = ratesFor(settings, r, true)
+  const own = [r.commission_pct, r.markup_pct, r.dine_in_commission_pct, r.dine_in_markup_pct].some((v) => v != null)
+  const item = (label, v) => (
+    <div className="rounded-2xl bg-neutral-50 p-3">
+      <dt className="text-[11px] font-bold text-neutral-500">{label}</dt>
+      <dd className="text-lg font-extrabold tabular-nums">{String(v).replace('.', ',')} %</dd>
+    </div>
+  )
+  return (
+    <Card
+      title="Comisiones de rabeat"
+      icon="percent"
+      action={isSuper && <a href="#/panel/ajustes" className="text-sm font-bold text-brand-600">Cambiar</a>}
+    >
+      <dl className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {item('Comisión a domicilio', home.restaurant_commission_pct)}
+        {item('Recargo a domicilio', home.price_markup_pct)}
+        {item('Comisión en mesa', table.restaurant_commission_pct)}
+        {item('Recargo en mesa', table.price_markup_pct)}
+      </dl>
+      <p className="mt-2 text-xs text-neutral-500">
+        {own ? 'Este restaurante tiene comisiones propias.' : 'Se aplican las comisiones generales de rabeat.'} La comisión se descuenta de tus ventas; el recargo se suma al precio
+        que ve el cliente.
+      </p>
     </Card>
   )
 }
