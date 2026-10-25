@@ -7,6 +7,13 @@ import { LocationProvider } from './lib/location.jsx'
 import { CartProvider } from './lib/cart.jsx'
 import { ToastProvider } from './components/ui.jsx'
 import './index.css'
+import { listenInstallPrompt } from './lib/install.js'
+
+listenInstallPrompt()
+// Service worker (necesario para instalar la app); solo en producción
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}))
+}
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

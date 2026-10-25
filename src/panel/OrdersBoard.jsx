@@ -8,6 +8,7 @@ import { myRestaurants, ORDER_SELECT, setOrderStatus } from '../lib/data.js'
 import { callFunction, supabase, unwrap } from '../lib/supabase.js'
 import { dateTime, money, ORDER_STATUS, paymentLabel } from '../lib/format.js'
 import { PageTitle } from './Panel.jsx'
+import { getTicketWidth, printTicket, setTicketWidth, TICKET_WIDTHS } from './ticket.js'
 
 const FILTERS = [
   { id: 'active', label: 'En curso', statuses: ['confirmed', 'preparing', 'ready', 'on_the_way'] },
@@ -42,6 +43,22 @@ export default function OrdersBoard() {
   const [type, setType] = useState('')
   const { data: restaurants } = useAsync(() => myRestaurants(profile), [profile.id])
   const known = useRef(null)
+  const [paper, setPaper] = useState(getTicketWidth)
+  const [autoPrint, setAutoPrint] = useState(() => {
+    try {
+      return localStorage.getItem('rabeat:auto-print') === '1'
+    } catch {
+      return false
+    }
+  })
+  const toggleAutoPrint = () => {
+    setAutoPrint(!autoPrint)
+    try {
+      localStorage.setItem('rabeat:auto-print', autoPrint ? '0' : '1')
+    } catch {
+      /* sin almacenamiento */
+    }
+  }
 
   const { data: orders, error, loading, reload } = useAsync(async () => {
     let q = supabase.from('orders').select(ORDER_SELECT).neq('status', 'pending_payment').order('created_at', { ascending: false }).limit(100)
@@ -53,12 +70,15 @@ export default function OrdersBoard() {
     return unwrap(await q)
   }, [filter, type, restaurantId, restaurants, isSuper])
 
-  // Pitido al detectar pedidos nuevos
+  // Pitido (y ticket, si está activada la impresión automática) al detectar pedidos nuevos
   useEffect(() => {
     if (!orders) return
-    const ids = new Set(orders.filter((o) => o.status === 'confirmed').map((o) => o.id))
-    if (known.current && [...ids].some((id) => !known.current.has(id))) beep()
-    known.current = ids
+    const confirmed = orders.filter((o) => o.status === 'confirmed')
+    const fresh = known.current ? confirmed.filter((o) => !known.current.has(o.id)) : []
+    if (fresh.length) beep()
+    if (autoPrint) fresh.forEach((o, i) => setTimeout(() => printTicket(o, { tz: settings.timezone, width: paper }), i * 1500))
+    known.current = new Set(confirmed.map((o) => o.id))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orders])
 
   // Tiempo real + respaldo cada 20 s
@@ -77,8 +97,8 @@ export default function OrdersBoard() {
   return (
     <>
       <PageTitle subtitle="Se actualiza solo y suena al entrar un pedido nuevo">Pedidos</PageTitle>
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="no-scrollbar flex gap-1 overflow-x-auto rounded-2xl bg-white p-1 ring-1 ring-neutral-200">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="no-scrollbar flex shrink-0 gap-1 overflow-x-auto rounded-2xl bg-white p-1 ring-1 ring-neutral-200">
           {FILTERS.map((f) => (
             <button
               key={f.id}
@@ -89,7 +109,7 @@ export default function OrdersBoard() {
             </button>
           ))}
         </div>
-        <div className="flex gap-1 rounded-2xl bg-white p-1 ring-1 ring-neutral-200">
+        <div className="flex shrink-0 gap-1 rounded-2xl bg-white p-1 ring-1 ring-neutral-200">
           {[
             ['', 'Todos'],
             ['delivery', '🛵 Domicilio'],
@@ -99,6 +119,28 @@ export default function OrdersBoard() {
               {label}
             </button>
           ))}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Icon name="printer" className="size-4 text-neutral-500" />
+          <Select
+            value={paper}
+            onChange={(e) => {
+              setPaper(Number(e.target.value))
+              setTicketWidth(e.target.value)
+            }}
+            className="w-32"
+            aria-label="Ancho del papel del ticket"
+          >
+            {Object.entries(TICKET_WIDTHS).map(([w, label]) => (
+              <option key={w} value={w}>
+                {label}
+              </option>
+            ))}
+          </Select>
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold whitespace-nowrap text-neutral-600">
+            <input type="checkbox" checked={autoPrint} onChange={toggleAutoPrint} className="size-4 accent-brand-600" />
+            Imprimir al entrar
+          </label>
         </div>
         {restaurants?.length > 1 && (
           <Select value={restaurantId} onChange={(e) => setRestaurantId(e.target.value)} className="sm:w-64">
@@ -124,7 +166,7 @@ export default function OrdersBoard() {
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           {orders.map((o) => (
-            <OrderCard key={o.id} order={o} isSuper={isSuper} tz={settings.timezone} onChange={() => reload(true)} />
+            <OrderCard key={o.id} order={o} isSuper={isSuper} tz={settings.timezone} paper={paper} onChange={() => reload(true)} />
           ))}
         </div>
       )}
@@ -132,7 +174,7 @@ export default function OrdersBoard() {
   )
 }
 
-function OrderCard({ order: o, isSuper, tz, onChange }) {
+function OrderCard({ order: o, isSuper, tz, paper, onChange }) {
   const toast = useToast()
   const [busy, setBusy] = useState(false)
   const st = ORDER_STATUS[o.status]
@@ -245,6 +287,14 @@ function OrderCard({ order: o, isSuper, tz, onChange }) {
               ))}
           </Select>
         )}
+        <button
+          onClick={() => printTicket(o, { tz, width: paper })}
+          className="grid size-11 place-items-center rounded-2xl bg-neutral-100"
+          aria-label="Imprimir ticket"
+          title="Imprimir ticket"
+        >
+          <Icon name="printer" className="size-4" />
+        </button>
         <a href={`#/pedido/${o.tracking_token}`} className="grid size-11 place-items-center rounded-2xl bg-neutral-100" aria-label="Ver seguimiento" title="Ver seguimiento">
           <Icon name="eye" className="size-4" />
         </a>

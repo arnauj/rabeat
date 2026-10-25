@@ -1,5 +1,5 @@
 import { adminClient } from './db.ts'
-import { esc, itemsTable, layout, money, p, sendEmail, taxNote } from './email.ts'
+import { esc, itemsTable, layout, money, p, parseEmails, sendEmail, taxNote } from './email.ts'
 import { siteUrl, trackingUrl } from './http.ts'
 import { formatHour, slotLabel } from './hours.js'
 
@@ -95,17 +95,31 @@ export async function notifyOrder(orderId: string, event: OrderEvent) {
   }
 
   if (event === 'confirmed') {
-    // Restaurante (email del local y de su responsable)
+    // Restaurante: los emails de avisos configurados en su ficha; si no hay, el de su responsable
     const { data: owner } = r.owner_id ? await db.from('profiles').select('email').eq('id', r.owner_id).single() : { data: null }
-    const restaurantEmails = [...new Set([r.email, owner?.email].filter(Boolean))]
+    const configured = parseEmails(r.email)
+    const restaurantEmails = configured.length ? configured : parseEmails(owner?.email)
+    const customer = dineIn
+      ? ''
+      : p(
+          `👤 <b>${esc(order.customer_name)}</b> · <a href="tel:${esc(String(order.customer_phone ?? '').replace(/\s/g, ''))}">${esc(order.customer_phone)}</a><br>📍 ${esc(addressText(order))}`,
+        )
+    const payment =
+      order.payment_method === 'cash'
+        ? `💶 Cobrar en el local: <b>${money(order.total)}</b>`
+        : `✅ Pagado online (${money(order.total)} con IGIC)`
     sent.push(
       sendEmail(
         restaurantEmails,
         `🔔 Nuevo pedido ${order.code}${dineIn ? ` · ${order.table_name}` : ''}`,
         layout(
           `Nuevo pedido ${order.code}`,
-          p(dineIn ? `🍽️ Pedido en sala: <b>${esc(order.table_name)}</b>.` : `Entrega ${when(order, tz)} a ${esc(order.customer_name)}.`) + itemsTable(order.items.map((i: any) => ({ ...i, unit_price: i.base_price }))),
-          { href: `${siteUrl()}#/panel/pedidos`, label: 'Ver en el panel' },
+          p(dineIn ? `🍽️ Pedido en sala: <b>${esc(order.table_name)}</b>.` : `🛵 A domicilio, entrega ${when(order, tz)}.`) +
+            customer +
+            p(payment) +
+            p('<span style="color:#666;font-size:13px">Importes a tu precio de carta, sin IGIC:</span>') +
+            itemsTable(order.items.map((i: any) => ({ ...i, unit_price: i.base_price })), { 'Total a precio de carta': Number(order.restaurant_subtotal) }),
+          { href: `${siteUrl()}#/panel/pedidos`, label: 'Ver e imprimir en el panel' },
         ),
       ),
     )

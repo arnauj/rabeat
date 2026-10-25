@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { MapView } from '../components/Map.jsx'
+import { InstallBanner } from '../components/InstallApp.jsx'
 import { Button, ErrorBox, Loading, Logo, useToast } from '../components/ui.jsx'
 import { useAuth } from '../lib/auth.jsx'
 import { useSettings } from '../lib/settings.jsx'
@@ -94,6 +95,7 @@ export default function RiderApp({ parts }) {
       </header>
 
       <main className="mx-auto max-w-2xl px-4 py-5">
+        <InstallBanner className="mb-4" />
         {error && <ErrorBox error={error} onRetry={reload} />}
         {loading && !orders ? (
           <Loading />

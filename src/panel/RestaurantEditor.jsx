@@ -5,7 +5,7 @@ import { Button, Card, Cover, ErrorBox, Field, Loading, SafeImg, Select, Sheet, 
 import { useAuth } from '../lib/auth.jsx'
 import { useAsync } from '../lib/useAsync.js'
 import { getRestaurant, uploadImage } from '../lib/data.js'
-import { supabase, unwrap } from '../lib/supabase.js'
+import { callFunction, supabase, unwrap } from '../lib/supabase.js'
 import { slugify } from '../lib/format.js'
 import { navigate } from '../lib/router.js'
 import { CATEGORIES } from '../data/categories.js'
@@ -105,6 +105,12 @@ function InfoForm({ restaurant: r, onSaved }) {
       owner_id: form.owner_id || null,
     }
     if (!isSuper) delete patch.owner_id
+    const emails = splitEmails(form.email)
+    if (emails.invalid.length) {
+      setSaving(false)
+      return toast(`Revisa el email de avisos: ${emails.invalid.join(', ')}`, 'error')
+    }
+    patch.email = emails.valid.join(', ')
     const { error } = await supabase.from('restaurants').update(patch).eq('id', r.id)
     setSaving(false)
     if (error) return toast(error.message.includes('slug') ? 'Esa dirección web ya está en uso' : error.message, 'error')
@@ -151,10 +157,11 @@ function InfoForm({ restaurant: r, onSaved }) {
             <Field label="Tipo de cocina" placeholder="Canaria · Tradicional" value={form.cuisine} onChange={set('cuisine')} />
             <TextArea label="Descripción" rows={3} value={form.description} onChange={set('description')} className="sm:col-span-2" />
             <Field label="Teléfono del local" type="tel" value={form.phone} onChange={set('phone')} />
-            <Field label="Email para avisos de pedidos" type="email" value={form.email} onChange={set('email')} />
             <Field label="Dirección web" value={form.slug} onChange={set('slug')} hint={`…/#/r/${slugify(form.slug || form.name)}`} className="sm:col-span-2" />
           </div>
         </Card>
+
+        <OrderEmails restaurant={r} value={form.email} onChange={set('email')} />
 
         <Card title="Ubicación" icon="pin" action={<Button variant="soft" className="!py-2" onClick={() => setMapOpen(true)}>{form.lat == null ? 'Situar en el mapa' : 'Cambiar'}</Button>}>
           {form.lat == null ? (
@@ -276,4 +283,52 @@ function pick(r) {
     accepting_orders: r.accepting_orders,
     owner_id: r.owner_id,
   }
+}
+
+// «a@x.com, b@y.com» → válidos e inválidos
+function splitEmails(text) {
+  const parts = String(text ?? '')
+    .split(/[\s,;]+/)
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean)
+  const ok = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)
+  return { valid: [...new Set(parts.filter(ok))], invalid: parts.filter((e) => !ok(e)) }
+}
+
+// Emails donde el restaurante recibe los pedidos nuevos, con envío de prueba
+function OrderEmails({ restaurant: r, value, onChange }) {
+  const toast = useToast()
+  const [sending, setSending] = useState(false)
+  const unsaved = splitEmails(value).valid.join(', ') !== splitEmails(r.email).valid.join(', ')
+  const test = async () => {
+    setSending(true)
+    try {
+      const res = await callFunction('admin-users', { action: 'test_restaurant_email', restaurant_id: r.id })
+      toast(`Email de prueba enviado a ${res.to.join(', ')}`)
+    } catch (e) {
+      toast(e.message, 'error')
+    } finally {
+      setSending(false)
+    }
+  }
+  return (
+    <Card title="Avisos de pedidos" icon="mail">
+      <Field
+        label="Emails donde recibir los pedidos"
+        type="text"
+        inputMode="email"
+        autoComplete="off"
+        placeholder="pedidos@turestaurante.com"
+        value={value ?? ''}
+        onChange={onChange}
+        hint="Cada pedido nuevo llega aquí con los datos del cliente. Puedes poner varios separados por comas. Si lo dejas vacío, se usa el email del responsable."
+      />
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <Button variant="soft" className="!py-2" loading={sending} disabled={unsaved || !splitEmails(r.email).valid.length} onClick={test}>
+          Enviar email de prueba
+        </Button>
+        {unsaved && <span className="text-xs font-semibold text-amber-700">Guarda los cambios para poder probarlo</span>}
+      </div>
+    </Card>
+  )
 }

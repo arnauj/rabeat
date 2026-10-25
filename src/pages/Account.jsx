@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import TopBar from '../components/TopBar.jsx'
+import { InstallCard } from '../components/InstallApp.jsx'
 import Icon from '../components/Icon.jsx'
 import { Button, Card, Cover, Field, Loading, SectionTitle, useToast } from '../components/ui.jsx'
 import { useAuth } from '../lib/auth.jsx'
@@ -107,6 +108,7 @@ export default function Account() {
           </div>
         )}
 
+        <InstallCard />
         <Card title="Seguridad" icon="settings">
           <div className="flex gap-2">
             <Field className="flex-1" type="password" placeholder="Nueva contraseña" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import TopBar from '../components/TopBar.jsx'
+import { InstallBanner } from '../components/InstallApp.jsx'
 import Icon from '../components/Icon.jsx'
 import RestaurantCard from '../components/RestaurantCard.jsx'
 import { ErrorBox, Loading, SectionTitle, useNow } from '../components/ui.jsx'
@@ -60,6 +61,7 @@ export default function Home() {
             </button>
           </div>
         )}
+        <InstallBanner className="mt-4" />
         <Hero />
 
         {!address && (

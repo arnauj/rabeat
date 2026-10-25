@@ -1,15 +1,36 @@
 // Gestión de usuarios (solo superusuarios): alta, cambio de rol, bloqueo, contraseña y baja
 import { adminClient, requireRole } from '../_shared/db.ts'
 import { handle, HttpError, json } from '../_shared/http.ts'
-import { layout, p, sendEmailStrict } from '../_shared/email.ts'
+import { esc, layout, p, parseEmails, sendEmailStrict } from '../_shared/email.ts'
 
 const ROLES = ['superuser', 'restaurant', 'rider', 'customer']
 
 Deno.serve(
   handle(async (req) => {
-    const me = await requireRole(req, ['superuser'])
     const body = await req.json()
     const db = adminClient()
+
+    // Prueba de los emails de avisos de un restaurante (también para su responsable)
+    if (body.action === 'test_restaurant_email') {
+      const me = await requireRole(req, ['superuser', 'restaurant'])
+      const { data: r } = await db.from('restaurants').select('id, name, email, owner_id').eq('id', body.restaurant_id).maybeSingle()
+      if (!r || (me.role !== 'superuser' && r.owner_id !== me.id)) throw new HttpError(404, 'Restaurante no encontrado')
+      const to = parseEmails(r.email)
+      if (!to.length) throw new HttpError(400, 'Guarda primero al menos un email de avisos válido')
+      try {
+        for (const email of to)
+          await sendEmailStrict(
+            email,
+            `Prueba de avisos de pedidos · ${r.name}`,
+            layout('¡Los avisos funcionan! 🔔', p(`Aquí llegarán los pedidos nuevos de <b>${esc(r.name)}</b>.`) + p('Si este email ha ido a spam, márcalo como «No es spam» para no perderte ningún pedido.')),
+          )
+        return json({ ok: true, to })
+      } catch (e) {
+        throw new HttpError(502, `No se pudo enviar: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+
+    const me = await requireRole(req, ['superuser'])
 
     if (body.action === 'test_email') {
       const to = String(body.to ?? me.email).trim()

@@ -110,6 +110,16 @@ export function itemsTable(items: Item[], totals?: Record<string, number>) {
   }</table>`
 }
 
+// Lista de emails escrita a mano («a@x.com, b@y.com»): separa, limpia y descarta los no válidos
+export const parseEmails = (s: unknown) => [
+  ...new Set(
+    String(s ?? '')
+      .split(/[\s,;]+/)
+      .map((e) => e.trim().toLowerCase())
+      .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e)),
+  ),
+]
+
 export const p = (html: string) => `<p style="margin:0 0 10px;font-size:15px;line-height:1.5">${html}</p>`
 export { esc }
 
