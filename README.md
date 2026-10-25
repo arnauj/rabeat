@@ -33,9 +33,10 @@ Métodos de pago online, todos a través de Stripe Checkout:
 - **Tarjeta** de débito o crédito.
 - **Apple Pay** (iPhone, iPad, Mac) y **Google Pay** (Android, Chrome): la app muestra el que corresponde al dispositivo y Stripe ofrece el botón en su página de pago. Vienen activados por defecto en Stripe.
 - **PayPal**: hay que activarlo en Stripe → Configuración → Métodos de pago.
+- **Bizum**: el cliente escribe su móvil y confirma en la app de su banco. En Stripe está en vista previa: hay que solicitar el acceso y activarlo en Configuración → Métodos de pago. Importe entre 0,50 € y 5.000 €.
 - Los pedidos a domicilio se pagan siempre online (sin efectivo). En los pedidos desde la mesa también se puede **pagar en el local**.
 
-`STRIPE_PAYMENT_METHODS` (por defecto `card,paypal`) decide cuáles se ofrecen; quita `paypal` si no está activado en Stripe. Tras el cobro se guarda el medio concreto usado (Apple Pay, Google Pay, PayPal o la tarjeta), que aparece en el panel, en el seguimiento y en la app de reparto.
+`STRIPE_PAYMENT_METHODS` (por defecto `card,paypal,bizum`) decide cuáles se ofrecen; quita `paypal` o `bizum` si no están activados en Stripe. Tras el cobro se guarda el medio concreto usado (Apple Pay, Google Pay, PayPal, Bizum o la tarjeta), que aparece en el panel, en el seguimiento y en la app de reparto.
 
 Mientras no haya claves de Stripe, los pagos online funcionan en **modo pruebas** (se simula el cobro). Para activarlo:
 

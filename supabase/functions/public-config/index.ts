@@ -6,6 +6,6 @@ import { emailEnabled } from '../_shared/email.ts'
 // methods: pagos online disponibles (en modo pruebas se simulan todos)
 Deno.serve(
   handle(async () =>
-    json({ payments: stripeEnabled() ? 'stripe' : 'test', methods: stripeEnabled() ? onlineMethods() : ['card', 'paypal'], email: emailEnabled() }),
+    json({ payments: stripeEnabled() ? 'stripe' : 'test', methods: stripeEnabled() ? onlineMethods() : ['card', 'paypal', 'bizum'], email: emailEnabled() }),
   ),
 )

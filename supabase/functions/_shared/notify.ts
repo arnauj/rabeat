@@ -3,6 +3,8 @@ import { esc, itemsTable, layout, money, p, parseEmails, sendEmail, taxNote } fr
 import { siteUrl, trackingUrl } from './http.ts'
 import { formatHour, slotLabel } from './hours.js'
 
+const REFUND_TO: Record<string, string> = { card: 'en tu tarjeta', paypal: 'en tu cuenta de PayPal', bizum: 'en tu cuenta bancaria (Bizum)' }
+
 export type OrderEvent = 'confirmed' | 'rider_assigned' | 'delivered' | 'cancelled'
 
 async function loadOrder(orderId: string) {
@@ -177,7 +179,7 @@ export async function notifyOrder(orderId: string, event: OrderEvent) {
         layout(
           'Tu pedido se ha cancelado',
           p(`${esc(r.name)} no ha podido atender tu pedido ${order.code}.`) +
-            p(order.payment_status === 'paid' && ['card', 'paypal'].includes(order.payment_method) ? `Te devolveremos el importe ${order.payment_method === 'paypal' ? 'en tu cuenta de PayPal' : 'en tu tarjeta'} en los próximos días.` : ''),
+            p(order.payment_status === 'paid' && ['card', 'paypal', 'bizum'].includes(order.payment_method) ? `Te devolveremos el importe ${REFUND_TO[order.payment_method]} en los próximos días.` : ''),
           { href: link, label: 'Ver detalles' },
         ),
       ),

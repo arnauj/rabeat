@@ -125,7 +125,7 @@ export default function OrderTracking({ token, query }) {
             <div className="mt-4 rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
               <p className="font-display text-3xl font-black italic">Pedido cancelado</p>
               <p className="mt-2 text-sm text-white/70">
-                {o.payment_status === 'paid' && ['card', 'paypal'].includes(o.payment_method) ? `Te devolveremos el importe ${o.payment_method === 'paypal' ? 'en tu cuenta de PayPal' : 'en tu tarjeta'}.` : 'No se ha realizado ningún cargo.'}
+                {o.payment_status === 'paid' && ['card', 'paypal', 'bizum'].includes(o.payment_method) ? `Te devolveremos el importe ${{ paypal: 'en tu cuenta de PayPal', bizum: 'en tu cuenta bancaria (Bizum)' }[o.payment_method] ?? 'en tu tarjeta'}.` : 'No se ha realizado ningún cargo.'}
               </p>
             </div>
           ) : dineIn ? (

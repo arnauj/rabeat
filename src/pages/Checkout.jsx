@@ -434,7 +434,7 @@ function DeliveryCheckout({ query }) {
                   </span>
                 ) : (
                   <>
-                    <span>{mode === 'scheduled' ? 'Programar y pagar' : payment === 'paypal' ? 'Pagar con PayPal' : 'Pagar pedido'}</span>
+                    <span>{mode === 'scheduled' ? 'Programar y pagar' : payment === 'paypal' ? 'Pagar con PayPal' : payment === 'bizum' ? 'Pagar con Bizum' : 'Pagar pedido'}</span>
                     <span className="tabular-nums">{money(q.total)}</span>
                   </>
                 )}
@@ -503,6 +503,8 @@ const WALLET =
         ),
       }
 
+const BIZUM_MARK = <span className="text-lg leading-5 font-black tracking-tight text-[#05C3DD]">bizum</span>
+
 const PAYPAL_MARK = (
   <span className="text-base leading-5 font-extrabold italic">
     <span className="text-[#003087]">Pay</span>
@@ -511,10 +513,11 @@ const PAYPAL_MARK = (
 )
 
 // Selector de pago: tarjeta, Apple/Google Pay y PayPal (vía Stripe); en mesa, también pagar en el local
-function PaymentMethods({ value, onChange, methods = ['card', 'paypal'], testMode, cash = null, cashFirst = false }) {
+function PaymentMethods({ value, onChange, methods = ['card', 'paypal', 'bizum'], testMode, cash = null, cashFirst = false }) {
   const options = [
     methods.includes('card') && { id: 'wallet', mark: WALLET.mark, title: WALLET.name, subtitle: 'Rápido y seguro' },
     methods.includes('card') && { id: 'card', icon: 'card', title: 'Tarjeta', subtitle: 'Débito o crédito' },
+    methods.includes('bizum') && { id: 'bizum', mark: BIZUM_MARK, title: 'Bizum', subtitle: 'Con tu móvil' },
     methods.includes('paypal') && { id: 'paypal', mark: PAYPAL_MARK, title: 'PayPal', subtitle: 'Con tu cuenta' },
   ].filter(Boolean)
   const cashOption = cash && { id: 'cash', icon: 'cash', title: cash.title, subtitle: cash.subtitle }
@@ -523,6 +526,7 @@ function PaymentMethods({ value, onChange, methods = ['card', 'paypal'], testMod
     wallet: `En la página segura de pago pulsa el botón de ${WALLET.name}. Si no aparece, puedes pagar con tarjeta.`,
     card: 'Te llevaremos a la página segura de Stripe para introducir tu tarjeta.',
     paypal: 'Te llevaremos a PayPal para confirmar el pago con tu cuenta.',
+    bizum: 'En la página segura de pago escribe tu móvil de Bizum y confirma el pago en la app de tu banco.',
     cash: cash?.note,
   }
   return (

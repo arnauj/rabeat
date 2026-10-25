@@ -17,7 +17,7 @@ type Body = {
   scheduled_for?: string | null
   tip?: number
   promo_code?: string
-  payment_method?: 'card' | 'wallet' | 'paypal' | 'cash' // wallet = Apple Pay / Google Pay (cobro con tarjeta)
+  payment_method?: 'card' | 'wallet' | 'paypal' | 'bizum' | 'cash' // wallet = Apple Pay / Google Pay (cobro con tarjeta)
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
@@ -154,7 +154,7 @@ Deno.serve(
     }
     // A domicilio solo se paga online; el efectivo es solo para pagar en el local (pedidos en mesa)
     if (body.payment_method === 'cash' && !dineIn) throw new HttpError(400, 'Los pedidos a domicilio se pagan online')
-    const online = body.payment_method === 'paypal' ? 'paypal' : 'card'
+    const online = body.payment_method === 'paypal' || body.payment_method === 'bizum' ? body.payment_method : 'card'
     if (body.payment_method !== 'cash' && stripeEnabled() && !onlineMethods().includes(online))
       throw new HttpError(400, 'Ese método de pago no está disponible')
     const method = body.payment_method === 'cash' ? 'cash' : stripeEnabled() ? online : 'test'
@@ -246,7 +246,7 @@ Deno.serve(
     const session = await stripe<{ id: string; url: string }>('checkout/sessions', {
       mode: 'payment',
       locale: 'es',
-      // Tarjeta (con Apple Pay / Google Pay en los dispositivos compatibles) o PayPal
+      // Tarjeta (con Apple Pay / Google Pay en los dispositivos compatibles), PayPal o Bizum
       payment_method_types: { 0: method },
       customer_email: order.customer_email ?? undefined,
       client_reference_id: order.id,
@@ -260,7 +260,7 @@ Deno.serve(
     }).catch(async (e) => {
       // Sin sesión de pago el pedido no puede seguir: se anula para que no quede colgado
       await db.from('orders').update({ status: 'cancelled', payment_status: 'failed', cancelled_at: new Date().toISOString() }).eq('id', order.id)
-      throw new HttpError(502, `No se pudo iniciar el pago${method === 'paypal' ? ' con PayPal' : ''}. Prueba con otro método. (${e instanceof Error ? e.message : e})`)
+      throw new HttpError(502, `No se pudo iniciar el pago${method === 'paypal' ? ' con PayPal' : method === 'bizum' ? ' con Bizum' : ''}. Prueba con otro método. (${e instanceof Error ? e.message : e})`)
     })
     await db.from('orders').update({ stripe_session_id: session.id }).eq('id', order.id)
     return json({ token: order.tracking_token, code: order.code, checkout_url: session.url })

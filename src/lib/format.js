@@ -30,8 +30,8 @@ export const ORDER_STATUS = {
   cancelled: { label: 'Cancelado', cls: 'bg-neutral-200 text-neutral-500 line-through' },
 }
 
-export const PAYMENT_METHOD = { card: 'Tarjeta', paypal: 'PayPal', cash: 'Efectivo', test: 'Pago de prueba' }
-const WALLETS = { apple_pay: 'Apple Pay', google_pay: 'Google Pay', link: 'Link', paypal: 'PayPal' }
+export const PAYMENT_METHOD = { card: 'Tarjeta', paypal: 'PayPal', bizum: 'Bizum', cash: 'Efectivo', test: 'Pago de prueba' }
+const WALLETS = { apple_pay: 'Apple Pay', google_pay: 'Google Pay', link: 'Link', paypal: 'PayPal', bizum: 'Bizum' }
 
 // Medio de pago tal y como se cobró (Apple Pay, Google Pay, Visa ·4242…) o, si no se sabe, el elegido
 export function paymentLabel(o) {

@@ -3,14 +3,15 @@ import { env } from './http.ts'
 export const stripeEnabled = () => env('STRIPE_SECRET_KEY').startsWith('sk_')
 
 // Métodos de pago online ofrecidos. «card» incluye Apple Pay y Google Pay (Stripe los muestra en el
-// dispositivo compatible); «paypal» hay que activarlo antes en Stripe → Configuración → Métodos de pago.
+// dispositivo compatible); «paypal» y «bizum» hay que activarlos antes en Stripe → Configuración → Métodos de pago.
+export const ONLINE_METHODS = ['card', 'paypal', 'bizum'] as const
 export const onlineMethods = () =>
-  env('STRIPE_PAYMENT_METHODS', 'card,paypal')
+  env('STRIPE_PAYMENT_METHODS', 'card,paypal,bizum')
     .split(',')
     .map((m) => m.trim())
-    .filter((m) => m === 'card' || m === 'paypal')
+    .filter((m) => (ONLINE_METHODS as readonly string[]).includes(m))
 
-// Medio concreto con el que se pagó: apple_pay, google_pay, paypal o «visa ·4242»
+// Medio concreto con el que se pagó: apple_pay, google_pay, paypal, bizum o «visa ·4242»
 export async function paymentDetail(paymentIntentId: string) {
   type Charge = { payment_method_details?: { type: string; card?: { brand?: string; last4?: string; wallet?: { type?: string } | null } } }
   const pi = await stripe<{ latest_charge?: Charge | null }>(`payment_intents/${paymentIntentId}?expand%5B%5D=latest_charge`, undefined, 'GET')

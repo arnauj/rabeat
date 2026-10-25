@@ -15,7 +15,7 @@ Deno.serve(
     if (order.status === 'cancelled' || order.status === 'pending_payment') throw new HttpError(409, 'Este pedido no admite propinas')
 
     // Efectivo o pasarela sin configurar: se suma directamente (en efectivo se entrega al rider)
-    if (!['card', 'paypal'].includes(order.payment_method) || !stripeEnabled()) {
+    if (!['card', 'paypal', 'bizum'].includes(order.payment_method) || !stripeEnabled()) {
       await db.from('tip_payments').insert({ order_id: order.id, amount: value, status: 'paid' })
       await addTipToOrder(order.id, value)
       return json({ ok: true, direct: true })
