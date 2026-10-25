@@ -6,7 +6,7 @@ import { useSettings } from '../lib/settings.jsx'
 import { useAsync } from '../lib/useAsync.js'
 import { myRestaurants, ORDER_SELECT, setOrderStatus } from '../lib/data.js'
 import { callFunction, supabase, unwrap } from '../lib/supabase.js'
-import { dateTime, money, ORDER_STATUS, PAYMENT_METHOD } from '../lib/format.js'
+import { dateTime, money, ORDER_STATUS, paymentLabel } from '../lib/format.js'
 import { PageTitle } from './Panel.jsx'
 
 const FILTERS = [
@@ -201,7 +201,7 @@ function OrderCard({ order: o, isSuper, tz, onChange }) {
           <p>
             <b className="text-ink">Pedido en sala</b>
             {o.customer_name && o.customer_name !== o.table_name && ` · ${o.customer_name}`} ·{' '}
-            {o.payment_method === 'cash' ? (o.payment_status === 'paid' ? 'Cobrado en el local' : `Cobrar en el local ${money(o.total)}`) : `${PAYMENT_METHOD[o.payment_method]} · pagado`}
+            {o.payment_method === 'cash' ? (o.payment_status === 'paid' ? 'Cobrado en el local' : `Cobrar en el local ${money(o.total)}`) : `${paymentLabel(o)} · pagado`}
           </p>
         </div>
       ) : (
@@ -211,7 +211,7 @@ function OrderCard({ order: o, isSuper, tz, onChange }) {
           <a href={`tel:${o.customer_phone.replace(/\s/g, '')}`} className="font-semibold text-brand-600">
             {o.customer_phone}
           </a>{' '}
-          · {PAYMENT_METHOD[o.payment_method]} · {money(o.total)}
+          · {paymentLabel(o)} · {money(o.total)}
         </p>
         <p className="mt-1">
           {o.address.street}

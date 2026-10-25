@@ -28,7 +28,16 @@ Los porcentajes y tarifas se cambian en **Panel → Comisiones y envío**.
 
 El cobro es centralizado: Stripe Checkout cobra en la cuenta de la plataforma y **Panel → Liquidaciones** muestra lo que se debe a cada restaurante y repartidor (con exportación CSV).
 
-Mientras no haya claves de Stripe, el pago con tarjeta funciona en **modo pruebas** (se simula el cobro). Para activarlo:
+Métodos de pago online, todos a través de Stripe Checkout:
+
+- **Tarjeta** de débito o crédito.
+- **Apple Pay** (iPhone, iPad, Mac) y **Google Pay** (Android, Chrome): la app muestra el que corresponde al dispositivo y Stripe ofrece el botón en su página de pago. Vienen activados por defecto en Stripe.
+- **PayPal**: hay que activarlo en Stripe → Configuración → Métodos de pago.
+- Además, **efectivo** al rider o **pago en el local** en los pedidos desde la mesa.
+
+`STRIPE_PAYMENT_METHODS` (por defecto `card,paypal`) decide cuáles se ofrecen; quita `paypal` si no está activado en Stripe. Tras el cobro se guarda el medio concreto usado (Apple Pay, Google Pay, PayPal o la tarjeta), que aparece en el panel, en el seguimiento y en la app de reparto.
+
+Mientras no haya claves de Stripe, los pagos online funcionan en **modo pruebas** (se simula el cobro). Para activarlo:
 
 1. Copia `supabase/.env.example` a `supabase/.env` y rellena `STRIPE_SECRET_KEY` y `STRIPE_WEBHOOK_SECRET`.
 2. En Stripe → Desarrolladores → Webhooks, crea un endpoint a

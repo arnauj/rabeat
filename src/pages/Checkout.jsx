@@ -350,23 +350,13 @@ function DeliveryCheckout({ query }) {
           </section>
 
           <Section title="Método de pago" icon="card">
-            <div className="grid grid-cols-2 gap-2">
-              <PayOption active={payment === 'card'} onClick={() => setPayment('card')} icon="card" title="Tarjeta" subtitle="Apple Pay · Google Pay" />
-              <PayOption active={payment === 'cash'} onClick={() => setPayment('cash')} icon="cash" title="Efectivo" subtitle="Pagas al rider" />
-            </div>
-            {payment === 'card' &&
-              (testMode ? (
-                <p className="mt-4 rounded-2xl bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
-                  🧪 <b>Pasarela en modo pruebas.</b> La conexión con Stripe aún no está activada: el pago se simulará y el pedido se confirmará sin cargo.
-                </p>
-              ) : (
-                <p className="mt-4 rounded-2xl bg-neutral-100 p-3 text-sm text-neutral-600">
-                  Te llevaremos a la página segura de Stripe para pagar con tarjeta, Apple Pay o Google Pay.
-                </p>
-              ))}
-            {payment === 'cash' && (
-              <p className="mt-4 rounded-2xl bg-neutral-100 p-3 text-sm text-neutral-600">Paga al rider en la entrega. Intenta tener el importe justo 🙏</p>
-            )}
+            <PaymentMethods
+              value={payment}
+              onChange={setPayment}
+              methods={config?.methods}
+              testMode={testMode}
+              cash={{ title: 'Efectivo', subtitle: 'Pagas al rider', note: 'Paga al rider en la entrega. Intenta tener el importe justo 🙏' }}
+            />
           </Section>
         </main>
 
@@ -445,7 +435,7 @@ function DeliveryCheckout({ query }) {
                   </span>
                 ) : (
                   <>
-                    <span>{payment === 'cash' ? 'Confirmar pedido' : mode === 'scheduled' ? 'Programar y pagar' : 'Pagar pedido'}</span>
+                    <span>{payment === 'cash' ? 'Confirmar pedido' : mode === 'scheduled' ? 'Programar y pagar' : payment === 'paypal' ? 'Pagar con PayPal' : 'Pagar pedido'}</span>
                     <span className="tabular-nums">{money(q.total)}</span>
                   </>
                 )}
@@ -489,14 +479,82 @@ function Choice({ active, disabled, onClick, title, subtitle, icon }) {
   )
 }
 
-function PayOption({ active, onClick, icon, title, subtitle }) {
+// Apple Pay en dispositivos de Apple; Google Pay en el resto (Android, Chrome…)
+const WALLET =
+  typeof window !== 'undefined' && 'ApplePaySession' in window
+    ? { name: 'Apple Pay', mark: (
+        <span className="inline-flex items-center gap-0.5 text-lg leading-5 font-semibold">
+          <svg viewBox="0 0 24 24" className="size-5 -translate-y-px fill-current" aria-hidden="true">
+            <path d="M16.37 12.6c-.03-2.6 2.12-3.85 2.22-3.91-1.21-1.77-3.09-2.01-3.76-2.04-1.6-.16-3.12.94-3.93.94-.81 0-2.06-.92-3.39-.89-1.74.03-3.35 1.01-4.25 2.57-1.81 3.14-.46 7.8 1.3 10.35.86 1.25 1.89 2.65 3.23 2.6 1.3-.05 1.79-.84 3.36-.84 1.57 0 2.01.84 3.38.81 1.4-.03 2.28-1.27 3.13-2.53.99-1.45 1.4-2.86 1.42-2.93-.03-.01-2.72-1.04-2.71-4.13zM13.79 4.97c.71-.86 1.19-2.06 1.06-3.25-1.02.04-2.26.68-3 1.54-.66.76-1.23 1.98-1.08 3.15 1.14.09 2.3-.58 3.02-1.44z" />
+          </svg>
+          Pay
+        </span>
+      ) }
+    : {
+        name: 'Google Pay',
+        mark: (
+          <span className="text-base leading-5 font-bold">
+            <span className="text-[#4285F4]">G</span>
+            <span className="text-[#EA4335]">o</span>
+            <span className="text-[#FBBC05]">o</span>
+            <span className="text-[#4285F4]">g</span>
+            <span className="text-[#34A853]">l</span>
+            <span className="text-[#EA4335]">e</span> Pay
+          </span>
+        ),
+      }
+
+const PAYPAL_MARK = (
+  <span className="text-base leading-5 font-extrabold italic">
+    <span className="text-[#003087]">Pay</span>
+    <span className="text-[#009CDE]">Pal</span>
+  </span>
+)
+
+// Selector de pago: tarjeta, Apple/Google Pay y PayPal (vía Stripe) más el pago en efectivo/local
+function PaymentMethods({ value, onChange, methods = ['card', 'paypal'], testMode, cash, cashFirst = false }) {
+  const options = [
+    methods.includes('card') && { id: 'wallet', mark: WALLET.mark, title: WALLET.name, subtitle: 'Rápido y seguro' },
+    methods.includes('card') && { id: 'card', icon: 'card', title: 'Tarjeta', subtitle: 'Débito o crédito' },
+    methods.includes('paypal') && { id: 'paypal', mark: PAYPAL_MARK, title: 'PayPal', subtitle: 'Con tu cuenta' },
+  ].filter(Boolean)
+  const cashOption = { id: 'cash', icon: 'cash', title: cash.title, subtitle: cash.subtitle }
+  const all = cashFirst ? [cashOption, ...options] : [...options, cashOption]
+  const notes = {
+    wallet: `En la página segura de pago pulsa el botón de ${WALLET.name}. Si no aparece, puedes pagar con tarjeta.`,
+    card: 'Te llevaremos a la página segura de Stripe para introducir tu tarjeta.',
+    paypal: 'Te llevaremos a PayPal para confirmar el pago con tu cuenta.',
+    cash: cash.note,
+  }
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-2">
+        {all.map((o) => (
+          <PayOption key={o.id} active={value === o.id} onClick={() => onChange(o.id)} {...o} />
+        ))}
+      </div>
+      {value !== 'cash' && testMode ? (
+        <p className="mt-4 rounded-2xl bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
+          🧪 <b>Pasarela en modo pruebas.</b> La conexión con Stripe aún no está activada: el pago se simulará y el pedido se confirmará sin cargo.
+        </p>
+      ) : (
+        <p className="mt-4 rounded-2xl bg-neutral-100 p-3 text-sm text-neutral-600">{notes[value]}</p>
+      )}
+    </>
+  )
+}
+
+function PayOption({ active, onClick, icon, mark, title, subtitle }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`flex flex-col items-center gap-1 rounded-2xl px-2 py-3 text-center ring-1 transition ${active ? 'bg-brand-50 text-brand-700 ring-2 ring-brand-600' : 'bg-white ring-neutral-200'}`}
+      aria-pressed={active}
+      aria-label={title}
+      className={`flex min-h-20 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3 text-center ring-1 transition ${active ? 'bg-brand-50 text-brand-700 ring-2 ring-brand-600' : 'bg-white ring-neutral-200'}`}
     >
-      <Icon name={icon} className="size-5" />
-      <span className="text-sm font-extrabold">{title}</span>
+      {mark ? <span className="text-ink">{mark}</span> : <Icon name={icon} className="size-5" />}
+      {!mark && <span className="text-sm font-extrabold">{title}</span>}
       <span className="text-[11px] text-neutral-500">{subtitle}</span>
     </button>
   )
@@ -639,15 +697,14 @@ function DineInCheckout() {
 
         <section className="rounded-3xl bg-white p-5 ring-1 ring-neutral-200/70">
           <h2 className="mb-3 font-extrabold">¿Cómo pagas?</h2>
-          <div className="grid grid-cols-2 gap-2">
-            <PayOption active={payment === 'cash'} onClick={() => setPayment('cash')} icon="cash" title="En el local" subtitle="Efectivo o tarjeta al camarero" />
-            <PayOption active={payment === 'card'} onClick={() => setPayment('card')} icon="card" title="Ahora" subtitle="Tarjeta · Apple/Google Pay" />
-          </div>
-          {payment === 'card' && testMode && (
-            <p className="mt-3 rounded-2xl bg-amber-50 p-3 text-sm text-amber-900 ring-1 ring-amber-200">
-              🧪 <b>Pasarela en modo pruebas:</b> el pago se simula sin cargo.
-            </p>
-          )}
+          <PaymentMethods
+            value={payment}
+            onChange={setPayment}
+            methods={config?.methods}
+            testMode={testMode}
+            cashFirst
+            cash={{ title: 'En el local', subtitle: 'Efectivo o tarjeta al camarero', note: 'Paga al camarero cuando quieras: el pedido va directo a cocina.' }}
+          />
         </section>
       </main>
 
@@ -669,7 +726,7 @@ function DineInCheckout() {
               </span>
             ) : (
               <>
-                <span>{payment === 'card' ? 'Pagar y enviar a cocina' : 'Enviar a cocina'}</span>
+                <span>{payment !== 'cash' ? 'Pagar y enviar a cocina' : 'Enviar a cocina'}</span>
                 <span className="tabular-nums">{money(q.total)}</span>
               </>
             )}

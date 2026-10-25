@@ -7,7 +7,7 @@ import { useSettings } from '../lib/settings.jsx'
 import { useAsync } from '../lib/useAsync.js'
 import { ORDER_SELECT, setOrderStatus } from '../lib/data.js'
 import { callFunction, supabase, unwrap } from '../lib/supabase.js'
-import { dateTime, km, money, ORDER_STATUS, PAYMENT_METHOD } from '../lib/format.js'
+import { dateTime, km, money, ORDER_STATUS, paymentLabel } from '../lib/format.js'
 import { navigate } from '../lib/router.js'
 import { PeriodPicker, periodRange, StatTile } from '../panel/common.jsx'
 
@@ -221,7 +221,7 @@ function Summary({ order: o }) {
           <span>
             <b>{o.address.street}</b>
             <span className="block text-xs text-neutral-500">
-              {km(o.distance_km)} · {PAYMENT_METHOD[o.payment_method]}
+              {km(o.distance_km)} · {paymentLabel(o)}
               {o.payment_method === 'cash' && <b className="text-brand-700"> · cobrar {money(o.total)}</b>}
             </span>
           </span>

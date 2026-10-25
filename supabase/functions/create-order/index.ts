@@ -3,7 +3,7 @@ import { adminClient, currentUser } from '../_shared/db.ts'
 import { handle, HttpError, json, siteUrl, trackingUrl } from '../_shared/http.ts'
 import { getStatus, isValidSlot } from '../_shared/hours.js'
 import { deliveryDistanceKm, grossPrice, inDeliveryRange, quote, resolveOptions, taxRate } from '../_shared/pricing.js'
-import { cents, stripe, stripeEnabled } from '../_shared/stripe.ts'
+import { cents, onlineMethods, stripe, stripeEnabled } from '../_shared/stripe.ts'
 import { notifyOrder } from '../_shared/notify.ts'
 
 type Body = {
@@ -17,7 +17,7 @@ type Body = {
   scheduled_for?: string | null
   tip?: number
   promo_code?: string
-  payment_method?: 'card' | 'cash'
+  payment_method?: 'card' | 'wallet' | 'paypal' | 'cash' // wallet = Apple Pay / Google Pay (cobro con tarjeta)
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
@@ -153,7 +153,10 @@ Deno.serve(
         throw new HttpError(400, 'Revisa tu nombre, email y teléfono')
       if (!body.address?.street?.trim()) throw new HttpError(400, 'Indica la calle y el número')
     }
-    const method = body.payment_method === 'cash' ? 'cash' : stripeEnabled() ? 'card' : 'test'
+    const online = body.payment_method === 'paypal' ? 'paypal' : 'card'
+    if (body.payment_method !== 'cash' && stripeEnabled() && !onlineMethods().includes(online))
+      throw new HttpError(400, 'Ese método de pago no está disponible')
+    const method = body.payment_method === 'cash' ? 'cash' : stripeEnabled() ? online : 'test'
 
     // --- Alta del pedido
     const { data: order, error } = await db
@@ -242,6 +245,8 @@ Deno.serve(
     const session = await stripe<{ id: string; url: string }>('checkout/sessions', {
       mode: 'payment',
       locale: 'es',
+      // Tarjeta (con Apple Pay / Google Pay en los dispositivos compatibles) o PayPal
+      payment_method_types: { 0: method },
       customer_email: order.customer_email ?? undefined,
       client_reference_id: order.id,
       metadata: { type: 'order', order_id: order.id },
@@ -251,6 +256,10 @@ Deno.serve(
       expires_at: Math.floor(Date.now() / 1000) + 31 * 60,
       success_url: `${trackingUrl(order.tracking_token)}?pago=ok`,
       cancel_url: `${siteUrl()}#/pago?cancelado=${order.code}`,
+    }).catch(async (e) => {
+      // Sin sesión de pago el pedido no puede seguir: se anula para que no quede colgado
+      await db.from('orders').update({ status: 'cancelled', payment_status: 'failed', cancelled_at: new Date().toISOString() }).eq('id', order.id)
+      throw new HttpError(502, `No se pudo iniciar el pago${method === 'paypal' ? ' con PayPal' : ''}. Prueba con otro método. (${e instanceof Error ? e.message : e})`)
     })
     await db.from('orders').update({ stripe_session_id: session.id }).eq('id', order.id)
     return json({ token: order.tracking_token, code: order.code, checkout_url: session.url })

@@ -7,7 +7,7 @@ import { getTracking } from '../lib/data.js'
 import { callFunction, supabase } from '../lib/supabase.js'
 import { useSettings } from '../lib/settings.jsx'
 import { useCart } from '../lib/cart.jsx'
-import { money, PAYMENT_METHOD } from '../lib/format.js'
+import { money, paymentLabel } from '../lib/format.js'
 import { formatHour, slotLabel } from '../lib/time.js'
 import TaxBreakdown from '../components/TaxBreakdown.jsx'
 
@@ -125,7 +125,7 @@ export default function OrderTracking({ token, query }) {
             <div className="mt-4 rounded-3xl bg-white/5 p-5 ring-1 ring-white/10">
               <p className="font-display text-3xl font-black italic">Pedido cancelado</p>
               <p className="mt-2 text-sm text-white/70">
-                {o.payment_status === 'paid' && o.payment_method === 'card' ? 'Te devolveremos el importe en tu tarjeta.' : 'No se ha realizado ningún cargo.'}
+                {o.payment_status === 'paid' && ['card', 'paypal'].includes(o.payment_method) ? `Te devolveremos el importe ${o.payment_method === 'paypal' ? 'en tu cuenta de PayPal' : 'en tu tarjeta'}.` : 'No se ha realizado ningún cargo.'}
               </p>
             </div>
           ) : dineIn ? (
@@ -232,7 +232,7 @@ export default function OrderTracking({ token, query }) {
             )}
             {Number(o.discount) > 0 && <Line label={`Descuento (${o.promo_code})`} value={`−${money(o.discount)}`} />}
             <div className="flex justify-between pt-2 text-base font-extrabold">
-              <dt>Total · {dineIn && o.payment_method === 'cash' ? 'En el local' : PAYMENT_METHOD[o.payment_method]}</dt>
+              <dt>Total · {dineIn && o.payment_method === 'cash' ? 'En el local' : paymentLabel(o)}</dt>
               <dd className="tabular-nums">{money(o.total)}</dd>
             </div>
           </dl>

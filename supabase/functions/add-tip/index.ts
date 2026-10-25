@@ -15,7 +15,7 @@ Deno.serve(
     if (order.status === 'cancelled' || order.status === 'pending_payment') throw new HttpError(409, 'Este pedido no admite propinas')
 
     // Efectivo o pasarela sin configurar: se suma directamente (en efectivo se entrega al rider)
-    if (order.payment_method !== 'card' || !stripeEnabled()) {
+    if (!['card', 'paypal'].includes(order.payment_method) || !stripeEnabled()) {
       await db.from('tip_payments').insert({ order_id: order.id, amount: value, status: 'paid' })
       await addTipToOrder(order.id, value)
       return json({ ok: true, direct: true })
@@ -26,6 +26,7 @@ Deno.serve(
     const session = await stripe<{ id: string; url: string }>('checkout/sessions', {
       mode: 'payment',
       locale: 'es',
+      payment_method_types: { 0: order.payment_method }, // mismo medio que el pedido
       customer_email: order.customer_email,
       metadata: { type: 'tip', tip_id: tip.id, order_id: order.id },
       line_items: { 0: { price_data: { currency: 'eur', unit_amount: cents(value), product_data: { name: `Propina para tu repartidor · ${order.code}` } }, quantity: 1 } },

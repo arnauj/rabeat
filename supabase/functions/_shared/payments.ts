@@ -1,8 +1,8 @@
 import { adminClient } from './db.ts'
 import { notifyOrder } from './notify.ts'
-import { stripe } from './stripe.ts'
+import { paymentDetail, stripe } from './stripe.ts'
 
-type Session = { id: string; payment_status: string; status: string; metadata?: Record<string, string> }
+type Session = { id: string; payment_status: string; status: string; payment_intent?: string | null; metadata?: Record<string, string> }
 
 // Aplica el resultado de una sesión de Stripe Checkout (idempotente)
 export async function applyCheckoutSession(session: Session) {
@@ -13,6 +13,11 @@ export async function applyCheckoutSession(session: Session) {
   if (meta.type === 'order' && meta.order_id) {
     if (paid) {
       const { data: order } = await db.rpc('mark_order_paid', { p_order: meta.order_id, p_session: session.id })
+      if (order && session.payment_intent) {
+        // Apple Pay, Google Pay, PayPal o tarjeta: solo informativo, un fallo no afecta al pago
+        const detail = await paymentDetail(session.payment_intent).catch((e) => (console.error(e), null))
+        if (detail) await db.from('orders').update({ payment_detail: detail }).eq('id', meta.order_id)
+      }
       if (order) await notifyOrder(meta.order_id, 'confirmed')
     } else if (session.status === 'expired') {
       await db

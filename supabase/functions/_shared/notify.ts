@@ -86,7 +86,7 @@ export async function notifyOrder(orderId: string, event: OrderEvent) {
           p(`Recogida en <b>${esc(r.name)}</b> · ${esc(r.address)}`) +
             p(`Entrega a ${Number(order.distance_km).toFixed(1).replace('.', ',')} km, ${when(order, tz)}.`) +
             p(Number(order.tip) > 0 ? `Propina: <b>${money(order.tip)}</b> 🐰` : 'Sin propina por ahora.') +
-            p(order.payment_method === 'cash' ? `⚠️ Cobro en efectivo: ${money(order.total)}` : 'Pagado con tarjeta.'),
+            p(order.payment_method === 'cash' ? `⚠️ Cobro en efectivo: ${money(order.total)}` : 'Pagado online.'),
           { href: `${siteUrl()}#/reparto`, label: 'Aceptar pedido' },
         ),
       ),
@@ -132,7 +132,7 @@ export async function notifyOrder(orderId: string, event: OrderEvent) {
           p(`<b>Recogida:</b> ${esc(r.name)} · ${esc(r.address)}${r.phone ? ` · ☎ ${esc(r.phone)}` : ''}`) +
             p(`<b>Entrega:</b> ${esc(order.customer_name)} · ${esc(addressText(order))} · ☎ ${esc(order.customer_phone)}`) +
             p(`Cuándo: ${when(order, tz)}`) +
-            p(order.payment_method === 'cash' ? `⚠️ Cobrar en efectivo: <b>${money(order.total)}</b>` : 'Pagado con tarjeta.') +
+            p(order.payment_method === 'cash' ? `⚠️ Cobrar en efectivo: <b>${money(order.total)}</b>` : 'Pagado online.') +
             itemsTable(order.items),
           { href: `${siteUrl()}#/reparto`, label: 'Abrir app de reparto' },
         ),
@@ -163,7 +163,7 @@ export async function notifyOrder(orderId: string, event: OrderEvent) {
         layout(
           'Tu pedido se ha cancelado',
           p(`${esc(r.name)} no ha podido atender tu pedido ${order.code}.`) +
-            p(order.payment_status === 'paid' && order.payment_method === 'card' ? 'Te devolveremos el importe en tu tarjeta en los próximos días.' : ''),
+            p(order.payment_status === 'paid' && ['card', 'paypal'].includes(order.payment_method) ? `Te devolveremos el importe ${order.payment_method === 'paypal' ? 'en tu cuenta de PayPal' : 'en tu tarjeta'} en los próximos días.` : ''),
           { href: link, label: 'Ver detalles' },
         ),
       ),
