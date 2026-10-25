@@ -42,7 +42,7 @@ export function LocationProvider({ children }) {
 
 export const useLocation = () => useContext(LocationContext)
 
-// Geocodificación con OpenStreetMap (Nominatim), centrada en Canarias
+// Geocodificación con OpenStreetMap (Nominatim), centrada en Lanzarote
 export async function searchAddress(query) {
   const params = new URLSearchParams({
     q: query,
@@ -50,7 +50,7 @@ export async function searchAddress(query) {
     addressdetails: '1',
     limit: '6',
     countrycodes: 'es',
-    viewbox: '-18.4,29.5,-13.3,27.6',
+    viewbox: '-14.1,29.45,-13.3,28.8', // Lanzarote (preferencia, no límite)
     'accept-language': 'es',
   })
   const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`)

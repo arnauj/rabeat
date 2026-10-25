@@ -47,7 +47,7 @@ export const RESTAURANTS = [
     deliveryFee: 1.49,
     minOrder: 12,
     distance: 1.2,
-    address: 'C/ Mayor de Triana 18, Las Palmas',
+    address: 'C/ José Antonio 18, Arrecife',
     hours: week(
       [
         ['12:00', '16:30'],
@@ -149,7 +149,7 @@ export const RESTAURANTS = [
     deliveryFee: 0,
     minOrder: 10,
     distance: 0.8,
-    address: 'Av. Mesa y López 55, Las Palmas',
+    address: 'Av. Mancomunidad 55, Arrecife',
     promo: 'Envío gratis',
     hours: week([['00:00', '24:00']]),
     menu: [
@@ -246,7 +246,7 @@ export const RESTAURANTS = [
     deliveryFee: 2.49,
     minOrder: 18,
     distance: 2.4,
-    address: 'Paseo de Las Canteras 12, Las Palmas',
+    address: 'Av. Fred Olsen 12, Arrecife',
     hours: week([
       ['13:00', '16:00'],
       ['20:00', '23:30'],
@@ -327,7 +327,7 @@ export const RESTAURANTS = [
     deliveryFee: 1.99,
     minOrder: 15,
     distance: 3.1,
-    address: 'C/ León y Castillo 210, Las Palmas',
+    address: 'C/ León y Castillo 210, Arrecife',
     hours: week([['19:00', '01:00']]),
     menu: [
       {
@@ -405,7 +405,7 @@ export const RESTAURANTS = [
     deliveryFee: 0.99,
     minOrder: 8,
     distance: 0.6,
-    address: 'Plaza de Santa Ana 3, Las Palmas',
+    address: 'Plaza de San Ginés 3, Arrecife',
     hours: week([['07:30', '12:30']]),
     menu: [
       {
@@ -478,7 +478,7 @@ export const RESTAURANTS = [
     deliveryFee: 1.49,
     minOrder: 12,
     distance: 1.9,
-    address: 'C/ Venegas 7, Las Palmas',
+    address: 'C/ Coronel Bens 7, Arrecife',
     promo: '-20% en tacos',
     hours: week([
       ['12:30', '16:00'],
@@ -534,8 +534,8 @@ export const RESTAURANTS = [
     ],
   },
   {
-    id: 'poke-las-canteras',
-    name: 'Poke Las Canteras',
+    id: 'poke-el-reducto',
+    name: 'Poke El Reducto',
     category: 'healthy',
     cuisine: 'Healthy · Poke bowls',
     cover: img('1546069901-ba9599a7e63c', 1200),
@@ -546,7 +546,7 @@ export const RESTAURANTS = [
     deliveryFee: 1.49,
     minOrder: 10,
     distance: 1.5,
-    address: 'C/ Tomás Miller 40, Las Palmas',
+    address: 'Av. Rafael González 40, Arrecife',
     hours: week([['11:00', '22:00']], [0]),
     menu: [
       {
@@ -610,7 +610,7 @@ export const RESTAURANTS = [
     deliveryFee: 1.99,
     minOrder: 10,
     distance: 2.2,
-    address: 'C/ Perdomo 15, Las Palmas',
+    address: 'C/ Canalejas 15, Arrecife',
     hours: week([['16:00', '21:00']]),
     menu: [
       {

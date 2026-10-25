@@ -4,7 +4,7 @@ import 'leaflet/dist/leaflet.css'
 
 const TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
 const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-export const LAS_PALMAS = { lat: 28.1235, lng: -15.4363 }
+export const ARRECIFE = { lat: 28.963, lng: -13.5477 }
 
 const ICONS = {
   restaurant: '<div class="grid size-10 place-items-center rounded-full bg-white text-xl shadow-lg ring-2 ring-ink">🍽️</div>',
@@ -29,7 +29,7 @@ function useLeaflet(ref, center, zoom, options = {}) {
 // Mapa con marcadores (seguimiento de pedidos, reparto)
 export function MapView({ markers, className = 'h-64', route = true }) {
   const el = useRef(null)
-  const first = markers.find((m) => m.lat != null) ?? LAS_PALMAS
+  const first = markers.find((m) => m.lat != null) ?? ARRECIFE
   const map = useLeaflet(el, first, 14, { scrollWheelZoom: false })
   const layer = useRef(null)
   const fitted = useRef(false)
@@ -58,7 +58,7 @@ export function MapView({ markers, className = 'h-64', route = true }) {
 // Selector de ubicación: el mapa se mueve y el pin queda en el centro
 export function PickerMap({ value, onChange, className = 'h-72' }) {
   const el = useRef(null)
-  const map = useLeaflet(el, value ?? LAS_PALMAS, value ? 17 : 13)
+  const map = useLeaflet(el, value ?? ARRECIFE, value ? 17 : 13)
   const onChangeRef = useRef(onChange)
   onChangeRef.current = onChange
 

@@ -3,14 +3,14 @@ import { writeFileSync } from 'node:fs'
 import { RESTAURANTS } from '../src/data/restaurants.js'
 
 const COORDS = {
-  'guachinche-la-papa': [28.1036, -15.4155],
-  'conejo-burger': [28.1301, -15.4386],
-  'sushi-atlantico': [28.1405, -15.4334],
-  'pizzeria-teide': [28.1205, -15.4263],
-  'cafe-el-roque': [28.1009, -15.414],
-  'tacos-la-guagua': [28.1097, -15.4182],
-  'poke-las-canteras': [28.1395, -15.4335],
-  'dulceria-gofio': [28.105, -15.4165],
+  'guachinche-la-papa': [28.9648, -13.5531],
+  'conejo-burger': [28.9672, -13.556],
+  'sushi-atlantico': [28.9603, -13.5455],
+  'pizzeria-teide': [28.9615, -13.551],
+  'cafe-el-roque': [28.9627, -13.5466],
+  'tacos-la-guagua': [28.96, -13.5497],
+  'poke-el-reducto': [28.9556, -13.5602],
+  'dulceria-gofio': [28.9624, -13.5527],
 }
 
 const q = (v) => (v === null || v === undefined ? 'null' : `'${String(v).replace(/'/g, "''")}'`)

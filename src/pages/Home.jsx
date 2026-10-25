@@ -182,7 +182,7 @@ function Hero() {
       <div className="speed-lines pointer-events-none absolute inset-y-0 left-0 w-2/3 opacity-60 [mask-image:linear-gradient(90deg,black,transparent)]" />
       <div className="relative z-10 max-w-[62%] sm:max-w-md">
         <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1 text-xs font-bold backdrop-blur">
-          <Icon name="bolt" className="size-3.5" /> Lo mejor de Gran Canaria
+          <Icon name="bolt" className="size-3.5" /> Lo mejor de Lanzarote
         </span>
         <h1 className="mt-3 font-display text-3xl leading-[0.95] font-black tracking-tight italic sm:text-5xl">
           Tu comida,
