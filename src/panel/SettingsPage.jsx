@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Button, Card, Field, Select, useToast } from '../components/ui.jsx'
+import { useEffect, useState } from 'react'
+import { Button, Card, Cover, Field, Select, Sheet, SheetHeader, useToast } from '../components/ui.jsx'
+import Icon from '../components/Icon.jsx'
 import { useSettings } from '../lib/settings.jsx'
 import { callFunction, supabase, unwrap } from '../lib/supabase.js'
 import { useAuth } from '../lib/auth.jsx'
 import { money } from '../lib/format.js'
-import { quote } from '../lib/pricing.js'
+import { grossPrice, quote, ratesFor } from '../lib/pricing.js'
 import { useAsync } from '../lib/useAsync.js'
 import { PageTitle } from './Panel.jsx'
 
@@ -62,45 +63,7 @@ export default function SettingsPage() {
               hint="Los restaurantes suben sus precios sin IGIC. Se aplica a platos (salvo los que tengan otro tipo) y al envío."
             />
           </Card>
-          <Card title="Comisiones generales (a domicilio)" icon="percent">
-            <p className="-mt-2 mb-3 text-xs text-neutral-500">Se aplican a los restaurantes que no tienen comisión propia (más abajo).</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field
-                label="Comisión al restaurante (%)"
-                inputMode="decimal"
-                value={form.restaurant_commission_pct}
-                onChange={set('restaurant_commission_pct')}
-                hint="Se descuenta de lo que cobra el restaurante en cada pedido"
-              />
-              <Field
-                label="Recargo sobre el precio de los platos (%)"
-                inputMode="decimal"
-                value={form.price_markup_pct}
-                onChange={set('price_markup_pct')}
-                hint="Se suma al precio de carta que ve y paga el cliente"
-              />
-            </div>
-          </Card>
-          <Card title="Comisiones generales en mesa (QR)" icon="qr">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field
-                label="Comisión al restaurante en mesa (%)"
-                inputMode="decimal"
-                value={form.dine_in_commission_pct}
-                onChange={set('dine_in_commission_pct')}
-                hint="Lo que cobra rabeat al restaurante por cada pedido hecho desde una mesa"
-              />
-              <Field
-                label="Recargo en el precio en mesa (%)"
-                inputMode="decimal"
-                value={form.dine_in_markup_pct}
-                onChange={set('dine_in_markup_pct')}
-                hint="Normalmente 0: el cliente paga el precio de carta del local"
-              />
-            </div>
-            <p className="mt-2 text-xs text-neutral-500">Los pedidos en mesa no tienen gastos de envío ni propina para repartidor.</p>
-          </Card>
-          <RestaurantRates settings={settings} />
+          <CommissionsCard form={form} set={set} settings={settings} />
           <Card title="Gastos de envío por distancia" icon="bike">
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label="Tarifa base (€)" inputMode="decimal" value={form.delivery_base_fee} onChange={set('delivery_base_fee')} />
@@ -194,95 +157,242 @@ function EmailTest() {
   )
 }
 
-const RATE_FIELDS = [
-  ['commission_pct', 'Comisión', 'restaurant_commission_pct'],
-  ['markup_pct', 'Recargo', 'price_markup_pct'],
-  ['dine_in_commission_pct', 'Comisión mesa', 'dine_in_commission_pct'],
-  ['dine_in_markup_pct', 'Recargo mesa', 'dine_in_markup_pct'],
-]
 
-// Comisión y recargo propios de cada restaurante; vacío = el valor general
-function RestaurantRates({ settings }) {
-  const toast = useToast()
-  const [query, setQuery] = useState('')
-  const [edits, setEdits] = useState({})
-  const [saving, setSaving] = useState(false)
+// ---------- Comisiones: generales (domicilio y mesa) y personalizadas por restaurante ----------
+const RATE_KEYS = ['commission_pct', 'markup_pct', 'dine_in_commission_pct', 'dine_in_markup_pct']
+const RESTAURANT_RATES = 'id, name, slug, active, cover_url, cover_is_logo, cover_bg, ' + RATE_KEYS.join(', ')
+const pct = (v) => `${String(Number(v)).replace('.', ',')} %`
+const hasOwn = (r) => RATE_KEYS.some((k) => r[k] != null)
+
+// Campo de porcentaje compacto con el símbolo dentro
+function PctInput({ label, hint, value, onChange, placeholder }) {
+  return (
+    <label className="block min-w-0">
+      <span className="mb-1 block text-xs font-bold text-neutral-500">{label}</span>
+      <span className="flex items-center rounded-2xl bg-white ring-1 ring-neutral-200 transition focus-within:ring-2 focus-within:ring-brand-500">
+        <input
+          inputMode="decimal"
+          value={value ?? ''}
+          placeholder={placeholder}
+          onChange={(e) => onChange(e.target.value.replace(/[^\d.,]/g, '').slice(0, 6))}
+          className="w-full min-w-0 bg-transparent px-4 py-3 text-lg font-extrabold tabular-nums outline-none placeholder:font-semibold placeholder:text-neutral-300"
+        />
+        <span className="pr-4 text-sm font-bold text-neutral-400">%</span>
+      </span>
+      {hint && <span className="mt-1 block text-[11px] leading-snug text-neutral-500">{hint}</span>}
+    </label>
+  )
+}
+
+function RatePanel({ emoji, title, children }) {
+  return (
+    <div className="rounded-3xl bg-neutral-50 p-4 ring-1 ring-neutral-100">
+      <p className="mb-3 flex items-center gap-2 text-sm font-extrabold">
+        <span className="grid size-8 place-items-center rounded-xl bg-white text-base shadow-sm">{emoji}</span>
+        {title}
+      </p>
+      <div className="grid grid-cols-2 gap-3">{children}</div>
+    </div>
+  )
+}
+
+function CommissionsCard({ form, set, settings }) {
   const { data: restaurants, reload } = useAsync(
-    async () => unwrap(await supabase.from('restaurants').select('id, name, active, ' + RATE_FIELDS.map(([k]) => k).join(', ')).order('name')),
+    async () => unwrap(await supabase.from('restaurants').select(RESTAURANT_RATES).order('name')),
     [],
   )
-  const value = (r, k) => (edits[r.id]?.[k] !== undefined ? edits[r.id][k] : r[k] == null ? '' : String(r[k]))
-  const set = (r, k, v) => setEdits((e) => ({ ...e, [r.id]: { ...e[r.id], [k]: v.replace(/[^\d.,]/g, '').slice(0, 6) } }))
-  const custom = (r) => RATE_FIELDS.some(([k]) => value(r, k) !== '')
-  const list = useMemo(
-    () => (restaurants ?? []).filter((r) => r.name.toLowerCase().includes(query.trim().toLowerCase())),
-    [restaurants, query],
-  )
-  const changed = Object.keys(edits).length > 0
-
-  const save = async () => {
-    const rows = Object.entries(edits).map(([id, patch]) => [
-      id,
-      Object.fromEntries(Object.entries(patch).map(([k, v]) => [k, v.trim() === '' ? null : Number(v.replace(',', '.'))])),
-    ])
-    if (rows.some(([, p]) => Object.values(p).some((v) => v !== null && !(v >= 0 && v <= 100))))
-      return toast('Los porcentajes deben estar entre 0 y 100', 'error')
-    setSaving(true)
-    for (const [id, patch] of rows) {
-      const { error } = await supabase.from('restaurants').update(patch).eq('id', id)
-      if (error) {
-        setSaving(false)
-        return toast(error.message, 'error')
-      }
-    }
-    setSaving(false)
-    setEdits({})
-    reload(true)
-    toast('Comisiones de los restaurantes guardadas: se aplican a los nuevos pedidos')
-  }
+  const [editing, setEditing] = useState(null) // { id } | { id: null } (nuevo)
+  const custom = (restaurants ?? []).filter(hasOwn)
+  const field = (k) => (v) => set(k)({ target: { value: v } })
 
   return (
-    <Card title="Comisiones por restaurante" icon="store">
-      <p className="-mt-2 mb-3 text-xs text-neutral-500">
-        Deja un campo vacío para usar el valor general (se muestra en gris). Lo que pongas aquí sustituye al general solo para ese restaurante.
+    <Card title="Comisiones" icon="percent">
+      <p className="-mt-2 mb-4 text-sm text-neutral-500">
+        Generales para todos los restaurantes. La <b>comisión</b> se descuenta de lo que cobra el restaurante; el <b>recargo</b> se suma al precio que paga el
+        cliente.
       </p>
-      {restaurants?.length > 6 && <Field placeholder="Buscar restaurante…" value={query} onChange={(e) => setQuery(e.target.value)} className="mb-3" />}
-      <div className="space-y-2">
-        {list.map((r) => (
-          <div key={r.id} className={`rounded-2xl p-3 ring-1 ${custom(r) ? 'bg-brand-50/50 ring-brand-200' : 'ring-neutral-200'}`}>
-            <p className="mb-2 flex items-center gap-2 text-sm font-extrabold">
-              {r.name}
-              {custom(r) && <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white">Propia</span>}
-              {!r.active && <span className="text-[11px] font-semibold text-neutral-400">oculto</span>}
-            </p>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {RATE_FIELDS.map(([k, label, general]) => (
-                <label key={k} className="block">
-                  <span className="mb-1 block text-[11px] font-bold text-neutral-500">{label} %</span>
-                  <input
-                    inputMode="decimal"
-                    value={value(r, k)}
-                    placeholder={String(settings[general] ?? 0)}
-                    onChange={(e) => set(r, k, e.target.value)}
-                    className="w-full rounded-xl bg-neutral-100 px-3 py-2 text-base font-semibold outline-none placeholder:font-normal placeholder:text-neutral-400 focus:ring-2 focus:ring-brand-600"
-                    aria-label={`${label} de ${r.name}`}
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
-        ))}
+      <div className="grid gap-3 md:grid-cols-2">
+        <RatePanel emoji="🛵" title="A domicilio">
+          <PctInput label="Comisión" value={form.restaurant_commission_pct} onChange={field('restaurant_commission_pct')} />
+          <PctInput label="Recargo" value={form.price_markup_pct} onChange={field('price_markup_pct')} />
+        </RatePanel>
+        <RatePanel emoji="🍽️" title="En mesa (QR)">
+          <PctInput label="Comisión" value={form.dine_in_commission_pct} onChange={field('dine_in_commission_pct')} />
+          <PctInput label="Recargo" value={form.dine_in_markup_pct} onChange={field('dine_in_markup_pct')} hint="Normalmente 0" />
+        </RatePanel>
       </div>
-      {changed && (
-        <div className="mt-3 flex gap-2">
-          <Button loading={saving} onClick={save}>
-            Guardar comisiones
-          </Button>
-          <Button variant="soft" disabled={saving} onClick={() => setEdits({})}>
-            Descartar
-          </Button>
+
+      <div className="mt-5 border-t border-dashed border-neutral-200 pt-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 font-extrabold">
+              Personalizadas
+              {custom.length > 0 && <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-bold text-white">{custom.length}</span>}
+            </p>
+            <p className="text-xs text-neutral-500">Sustituyen a las generales solo en ese restaurante</p>
+          </div>
+          <button
+            onClick={() => setEditing({ id: null })}
+            className="flex shrink-0 items-center gap-1.5 rounded-2xl bg-brand-50 px-3.5 py-2.5 text-sm font-extrabold text-brand-700 transition active:scale-95 hover:bg-brand-100"
+          >
+            <Icon name="plus" className="size-4" /> Añadir
+          </button>
         </div>
-      )}
+
+        {custom.length === 0 ? (
+          <button
+            onClick={() => setEditing({ id: null })}
+            className="flex w-full flex-col items-center gap-1 rounded-3xl border-2 border-dashed border-neutral-200 px-4 py-6 text-center transition hover:border-brand-300 hover:bg-brand-50/40"
+          >
+            <span className="text-2xl">🏷️</span>
+            <span className="text-sm font-bold">Todos usan las comisiones generales</span>
+            <span className="text-xs text-neutral-500">Pulsa para dar a un restaurante su propia comisión</span>
+          </button>
+        ) : (
+          <ul className="space-y-2">
+            {custom.map((r) => {
+              const home = ratesFor(settings, r)
+              const table = ratesFor(settings, r, true)
+              return (
+                <li key={r.id}>
+                  <button
+                    onClick={() => setEditing({ id: r.id })}
+                    className="flex w-full min-w-0 items-center gap-3 rounded-2xl bg-white p-2.5 text-left ring-1 ring-neutral-200 transition hover:ring-brand-300 active:scale-[0.99]"
+                  >
+                    <Cover restaurant={r} variant="thumb" className="size-11 shrink-0 rounded-xl" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-extrabold">{r.name}</span>
+                      <span className="mt-1 flex flex-wrap gap-1">
+                        <RateChip emoji="🛵" commission={home.restaurant_commission_pct} markup={home.price_markup_pct} own={r.commission_pct != null || r.markup_pct != null} />
+                        <RateChip emoji="🍽️" commission={table.restaurant_commission_pct} markup={table.price_markup_pct} own={r.dine_in_commission_pct != null || r.dine_in_markup_pct != null} />
+                      </span>
+                    </span>
+                    <Icon name="right" className="size-4 shrink-0 text-neutral-300" />
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </div>
+
+      <CustomRateSheet
+        editing={editing}
+        restaurants={restaurants ?? []}
+        settings={settings}
+        onClose={() => setEditing(null)}
+        onSaved={() => {
+          setEditing(null)
+          reload(true)
+        }}
+      />
     </Card>
+  )
+}
+
+function RateChip({ emoji, commission, markup, own }) {
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${own ? 'bg-brand-50 text-brand-700' : 'bg-neutral-100 text-neutral-500'}`}>
+      {emoji} {pct(commission)} · +{pct(markup)}
+    </span>
+  )
+}
+
+// Modal: elegir restaurante, cargar su comisión y guardarla
+function CustomRateSheet({ editing, restaurants, settings, onClose, onSaved }) {
+  const toast = useToast()
+  const [id, setId] = useState('')
+  const [vals, setVals] = useState({})
+  const [saving, setSaving] = useState(false)
+  const r = restaurants.find((x) => x.id === id)
+
+  // Al abrir (o cambiar de restaurante) se cargan sus valores actuales
+  useEffect(() => {
+    if (!editing) return
+    setId(editing.id ?? '')
+  }, [editing])
+  useEffect(() => {
+    setVals(Object.fromEntries(RATE_KEYS.map((k) => [k, r?.[k] == null ? '' : String(r[k]).replace('.', ',')])))
+  }, [r])
+
+  const parsed = Object.fromEntries(RATE_KEYS.map((k) => [k, vals[k]?.trim() ? Number(vals[k].replace(',', '.')) : null]))
+  const invalid = Object.values(parsed).some((v) => v != null && !(v >= 0 && v <= 100))
+  const preview = ratesFor(settings, { ...r, ...parsed })
+  const set = (k) => (v) => setVals((s) => ({ ...s, [k]: v }))
+
+  const save = async (patch) => {
+    setSaving(true)
+    const { error } = await supabase.from('restaurants').update(patch).eq('id', id)
+    setSaving(false)
+    if (error) return toast(error.message, 'error')
+    toast(Object.values(patch).every((v) => v == null) ? `${r.name} vuelve a las comisiones generales` : `Comisión de ${r.name} guardada`)
+    onSaved()
+  }
+
+  const isNew = !editing?.id
+  const options = restaurants.filter((x) => !isNew || !hasOwn(x) || x.id === id)
+
+  return (
+    <Sheet open={!!editing} onClose={onClose} label="Comisión personalizada">
+      <SheetHeader title="Comisión personalizada" subtitle={isNew ? 'Elige un restaurante' : r?.name} onClose={onClose} />
+      <div className="space-y-4 p-5">
+        {isNew ? (
+          <Select label="Restaurante" value={id} onChange={(e) => setId(e.target.value)}>
+            <option value="">Selecciona un restaurante…</option>
+            {options.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name}
+                {hasOwn(x) ? ' (personalizada)' : ''}
+              </option>
+            ))}
+          </Select>
+        ) : (
+          r && (
+            <div className="flex items-center gap-3 rounded-2xl bg-neutral-50 p-3">
+              <Cover restaurant={r} variant="thumb" className="size-12 shrink-0 rounded-xl" />
+              <p className="min-w-0 truncate font-extrabold">{r.name}</p>
+            </div>
+          )
+        )}
+
+        {r && (
+          <>
+            <p className="rounded-2xl bg-amber-50 px-3 py-2 text-xs text-amber-900 ring-1 ring-amber-200">
+              Deja un campo vacío para usar la general (en gris). Se aplica a los pedidos nuevos.
+            </p>
+            <RatePanel emoji="🛵" title="A domicilio">
+              <PctInput label="Comisión" value={vals.commission_pct} onChange={set('commission_pct')} placeholder={String(settings.restaurant_commission_pct)} />
+              <PctInput label="Recargo" value={vals.markup_pct} onChange={set('markup_pct')} placeholder={String(settings.price_markup_pct)} />
+            </RatePanel>
+            <RatePanel emoji="🍽️" title="En mesa (QR)">
+              <PctInput label="Comisión" value={vals.dine_in_commission_pct} onChange={set('dine_in_commission_pct')} placeholder={String(settings.dine_in_commission_pct)} />
+              <PctInput label="Recargo" value={vals.dine_in_markup_pct} onChange={set('dine_in_markup_pct')} placeholder={String(settings.dine_in_markup_pct)} />
+            </RatePanel>
+            <div className="rounded-2xl bg-ink p-4 text-sm text-white">
+              <p className="text-xs font-bold tracking-wide text-white/60 uppercase">Ejemplo a domicilio · plato de 10 € sin IGIC</p>
+              <div className="mt-2 flex justify-between">
+                <span className="text-white/80">El cliente paga</span>
+                <b className="tabular-nums">{money(grossPrice(10, preview.price_markup_pct, settings.igic_pct))}</b>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/80">rabeat cobra de comisión</span>
+                <b className="tabular-nums">{money((10 * preview.restaurant_commission_pct) / 100)}</b>
+              </div>
+            </div>
+            {invalid && <p className="text-sm font-semibold text-brand-600">Los porcentajes deben estar entre 0 y 100.</p>}
+          </>
+        )}
+      </div>
+      <div className="sticky bottom-0 flex gap-2 border-t border-neutral-100 bg-white/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur">
+        {!isNew && r && hasOwn(r) && (
+          <Button variant="danger" disabled={saving} onClick={() => save(Object.fromEntries(RATE_KEYS.map((k) => [k, null])))}>
+            Quitar
+          </Button>
+        )}
+        <Button className="flex-1 py-3.5" loading={saving} disabled={!r || invalid || (isNew && Object.values(parsed).every((v) => v == null))} onClick={() => save(parsed)}>
+          Guardar comisión
+        </Button>
+      </div>
+    </Sheet>
   )
 }

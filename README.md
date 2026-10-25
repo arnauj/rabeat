@@ -22,7 +22,7 @@ Web app de reparto de comida pensada primero para móvil: **React 19 + Vite + Ta
 - **Propina**: 100 % para el repartidor, en el pago y también después.
 - El servidor (`create-order`) recalcula siempre los importes; la app solo muestra una estimación.
 
-Los porcentajes y tarifas se cambian en **Panel → Comisiones y envío**. Ahí se fijan los valores generales y, en «Comisiones por restaurante», la comisión y el recargo propios de cada restaurante (a domicilio y en mesa); un campo vacío usa el general. Cada pedido guarda los porcentajes con los que se cobró.
+Los porcentajes y tarifas se cambian en **Panel → Comisiones y envío**. En la tarjeta «Comisiones» están las generales (a domicilio y en mesa) y, con el botón «Añadir» de «Personalizadas», se elige un restaurante en un modal y se le da su propia comisión y recargo; un campo vacío usa el general. Cada pedido guarda los porcentajes con los que se cobró.
 
 ## Pagos (Stripe)
 
