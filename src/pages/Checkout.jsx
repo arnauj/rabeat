@@ -355,7 +355,6 @@ function DeliveryCheckout({ query }) {
               onChange={setPayment}
               methods={config?.methods}
               testMode={testMode}
-              cash={{ title: 'Efectivo', subtitle: 'Pagas al rider', note: 'Paga al rider en la entrega. Intenta tener el importe justo 🙏' }}
             />
           </Section>
         </main>
@@ -435,7 +434,7 @@ function DeliveryCheckout({ query }) {
                   </span>
                 ) : (
                   <>
-                    <span>{payment === 'cash' ? 'Confirmar pedido' : mode === 'scheduled' ? 'Programar y pagar' : payment === 'paypal' ? 'Pagar con PayPal' : 'Pagar pedido'}</span>
+                    <span>{mode === 'scheduled' ? 'Programar y pagar' : payment === 'paypal' ? 'Pagar con PayPal' : 'Pagar pedido'}</span>
                     <span className="tabular-nums">{money(q.total)}</span>
                   </>
                 )}
@@ -511,20 +510,20 @@ const PAYPAL_MARK = (
   </span>
 )
 
-// Selector de pago: tarjeta, Apple/Google Pay y PayPal (vía Stripe) más el pago en efectivo/local
-function PaymentMethods({ value, onChange, methods = ['card', 'paypal'], testMode, cash, cashFirst = false }) {
+// Selector de pago: tarjeta, Apple/Google Pay y PayPal (vía Stripe); en mesa, también pagar en el local
+function PaymentMethods({ value, onChange, methods = ['card', 'paypal'], testMode, cash = null, cashFirst = false }) {
   const options = [
     methods.includes('card') && { id: 'wallet', mark: WALLET.mark, title: WALLET.name, subtitle: 'Rápido y seguro' },
     methods.includes('card') && { id: 'card', icon: 'card', title: 'Tarjeta', subtitle: 'Débito o crédito' },
     methods.includes('paypal') && { id: 'paypal', mark: PAYPAL_MARK, title: 'PayPal', subtitle: 'Con tu cuenta' },
   ].filter(Boolean)
-  const cashOption = { id: 'cash', icon: 'cash', title: cash.title, subtitle: cash.subtitle }
-  const all = cashFirst ? [cashOption, ...options] : [...options, cashOption]
+  const cashOption = cash && { id: 'cash', icon: 'cash', title: cash.title, subtitle: cash.subtitle }
+  const all = (cashFirst ? [cashOption, ...options] : [...options, cashOption]).filter(Boolean)
   const notes = {
     wallet: `En la página segura de pago pulsa el botón de ${WALLET.name}. Si no aparece, puedes pagar con tarjeta.`,
     card: 'Te llevaremos a la página segura de Stripe para introducir tu tarjeta.',
     paypal: 'Te llevaremos a PayPal para confirmar el pago con tu cuenta.',
-    cash: cash.note,
+    cash: cash?.note,
   }
   return (
     <>
@@ -551,7 +550,7 @@ function PayOption({ active, onClick, icon, mark, title, subtitle }) {
       onClick={onClick}
       aria-pressed={active}
       aria-label={title}
-      className={`flex min-h-20 flex-col items-center justify-center gap-1 rounded-2xl px-2 py-3 text-center ring-1 transition ${active ? 'bg-brand-50 text-brand-700 ring-2 ring-brand-600' : 'bg-white ring-neutral-200'}`}
+      className={`flex min-h-20 flex-col items-center justify-center gap-1 rounded-2xl odd:last:col-span-2 px-2 py-3 text-center ring-1 transition ${active ? 'bg-brand-50 text-brand-700 ring-2 ring-brand-600' : 'bg-white ring-neutral-200'}`}
     >
       {mark ? <span className="text-ink">{mark}</span> : <Icon name={icon} className="size-5" />}
       {!mark && <span className="text-sm font-extrabold">{title}</span>}

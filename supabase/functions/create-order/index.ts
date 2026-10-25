@@ -153,6 +153,8 @@ Deno.serve(
         throw new HttpError(400, 'Revisa tu nombre, email y teléfono')
       if (!body.address?.street?.trim()) throw new HttpError(400, 'Indica la calle y el número')
     }
+    // A domicilio solo se paga online; el efectivo es solo para pagar en el local (pedidos en mesa)
+    if (body.payment_method === 'cash' && !dineIn) throw new HttpError(400, 'Los pedidos a domicilio se pagan online')
     const online = body.payment_method === 'paypal' ? 'paypal' : 'card'
     if (body.payment_method !== 'cash' && stripeEnabled() && !onlineMethods().includes(online))
       throw new HttpError(400, 'Ese método de pago no está disponible')
