@@ -14,6 +14,7 @@ import OrderTracking from './pages/OrderTracking.jsx'
 import { Login, Register } from './pages/Auth.jsx'
 import Account from './pages/Account.jsx'
 import TableEntry from './pages/TableEntry.jsx'
+import TableTip from './pages/TableTip.jsx'
 import { money } from './lib/format.js'
 
 // Paneles en carga diferida: el cliente no descarga el código de gestión
@@ -51,7 +52,7 @@ export default function App() {
       content = <Account />
       break
     case 'mesa':
-      content = <TableEntry code={param} />
+      content = parts[2] === 'propina' ? <TableTip code={param} query={query} /> : <TableEntry code={param} />
       break
     case 'panel':
       content = <Panel parts={parts.slice(1)} />

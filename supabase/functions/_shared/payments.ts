@@ -1,5 +1,5 @@
 import { adminClient } from './db.ts'
-import { notifyOrder } from './notify.ts'
+import { notifyOrder, notifyStaffTip } from './notify.ts'
 import { paymentDetail, stripe } from './stripe.ts'
 
 type Session = { id: string; payment_status: string; status: string; payment_intent?: string | null; metadata?: Record<string, string> }
@@ -25,6 +25,23 @@ export async function applyCheckoutSession(session: Session) {
         .update({ status: 'cancelled', payment_status: 'failed', cancelled_at: new Date().toISOString() })
         .eq('id', meta.order_id)
         .eq('status', 'pending_payment')
+    }
+  }
+
+  // Propina al equipo del restaurante desde el QR de una mesa
+  if (meta.type === 'staff_tip' && meta.staff_tip_id) {
+    if (paid) {
+      const detail = session.payment_intent ? await paymentDetail(session.payment_intent).catch(() => null) : null
+      const { data: tip } = await db
+        .from('staff_tips')
+        .update({ status: 'paid', paid_at: new Date().toISOString(), payment_detail: detail })
+        .eq('id', meta.staff_tip_id)
+        .neq('status', 'paid')
+        .select('id')
+        .maybeSingle()
+      if (tip) await notifyStaffTip(tip.id)
+    } else if (session.status === 'expired') {
+      await db.from('staff_tips').update({ status: 'failed' }).eq('id', meta.staff_tip_id).eq('status', 'pending')
     }
   }
 

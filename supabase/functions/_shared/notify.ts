@@ -190,3 +190,26 @@ export async function notifyOrder(orderId: string, event: OrderEvent) {
   return { sent: results.filter(Boolean).length }
 }
 
+
+// Aviso al restaurante de una propina para su equipo (desde el QR de una mesa)
+export async function notifyStaffTip(tipId: string) {
+  const db = adminClient()
+  const { data: t } = await db.from('staff_tips').select('*, restaurant:restaurants(name, email, owner_id)').eq('id', tipId).single()
+  if (!t) return false
+  const r = t.restaurant
+  const { data: owner } = r.owner_id ? await db.from('profiles').select('email').eq('id', r.owner_id).single() : { data: null }
+  const configured = parseEmails(r.email)
+  const to = configured.length ? configured : parseEmails(owner?.email)
+  return sendEmail(
+    to,
+    `💛 Propina de ${money(t.amount)} · ${t.table_name}`,
+    layout(
+      '¡Propina para el equipo! 💛',
+      p(`Un cliente de la <b>${esc(t.table_name)}</b> ha dejado <b>${money(t.amount)}</b> de propina para el equipo de ${esc(r.name)}.`) +
+        (t.customer_name ? p(`De: <b>${esc(t.customer_name)}</b>`) : '') +
+        (t.message ? p(`<i>“${esc(t.message)}”</i>`) : '') +
+        p('<span style="color:#666;font-size:13px">Se incluye íntegra en vuestra próxima liquidación.</span>'),
+      { href: `${siteUrl()}#/panel/ventas`, label: 'Ver propinas en el panel' },
+    ),
+  )
+}

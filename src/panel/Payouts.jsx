@@ -24,7 +24,18 @@ export default function Payouts() {
   const [period, setPeriod] = useState('month')
   const { data, error, loading, reload } = useAsync(async () => {
     const { from, to } = periodRange(period, settings.timezone)
-    return unwrap(await supabase.rpc('platform_report', { p_from: from.toISOString(), p_to: to.toISOString() }))
+    const range = { p_from: from.toISOString(), p_to: to.toISOString() }
+    const [report, tips] = await Promise.all([
+      supabase.rpc('platform_report', range).then(unwrap),
+      supabase.rpc('staff_tips_report', { p_restaurant: null, ...range }).then(unwrap),
+    ])
+    // Propinas al equipo (QR de mesa): se suman a lo que se transfiere a cada restaurante
+    const tipsBy = Object.fromEntries(tips.by_restaurant.map((t) => [t.id, Number(t.total)]))
+    const rows = report.by_restaurant.map((r) => ({ ...r, staff_tips: tipsBy[r.id] ?? 0 }))
+    for (const t of tips.by_restaurant)
+      if (!rows.some((r) => r.id === t.id))
+        rows.push({ id: t.id, name: t.name, orders: 0, gross: 0, commission: 0, payout: 0, cash_in_restaurant: 0, cash_collected: 0, staff_tips: Number(t.total) })
+    return { ...report, by_restaurant: rows, staff_tips: Number(tips.total) }
   }, [period, settings.timezone])
 
   return (
@@ -51,7 +62,8 @@ export default function Payouts() {
             <StatTile label="Gastos de envío" value={money(data.delivery)} />
             <StatTile label="Descuentos (promos)" value={`−${money(data.discounts)}`} />
           </div>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <StatTile label="Propinas a equipos" value={money(data.staff_tips)} hint="QR de mesa, sin pedido" />
             <StatTile label="IGIC cobrado a clientes" value={money(data.tax ?? 0)} />
             <StatTile label="IGIC de la comida" value={money(data.restaurant_tax ?? 0)} hint="se paga a cada restaurante, que lo declara" />
             <StatTile label="IGIC a declarar por rabeat" value={money((data.tax ?? 0) - (data.restaurant_tax ?? 0))} hint="recargo y envío" />
@@ -65,7 +77,7 @@ export default function Payouts() {
                 className="!py-2"
                 onClick={() =>
                   downloadCsv(`liquidacion-restaurantes-${period}.csv`, [
-                    ['Restaurante', 'Pedidos', 'En mesa', 'Ventas', 'Comisión', 'Neto restaurante', 'Cobrado por el local', 'A transferir', 'Efectivo cobrado por riders'],
+                    ['Restaurante', 'Pedidos', 'En mesa', 'Ventas', 'Comisión', 'Neto restaurante', 'Cobrado por el local', 'Propinas equipo', 'A transferir', 'Efectivo cobrado por riders'],
                     ...data.by_restaurant.map((r) => [
                       r.name,
                       r.orders,
@@ -74,7 +86,8 @@ export default function Payouts() {
                       num(r.commission),
                       num(r.payout),
                       num(r.cash_in_restaurant ?? 0),
-                      num(r.payout - (r.cash_in_restaurant ?? 0)),
+                      num(r.staff_tips),
+                      num(r.payout - (r.cash_in_restaurant ?? 0) + r.staff_tips),
                       num(r.cash_collected),
                     ]),
                   ])
@@ -83,7 +96,7 @@ export default function Payouts() {
                 <Icon name="receipt" className="size-4" /> CSV
               </Button>
             </div>
-            <Table head={['Restaurante', 'Pedidos', 'Ventas', 'Comisión', 'Cobrado en el local', 'A transferir']}>
+            <Table head={['Restaurante', 'Pedidos', 'Ventas', 'Comisión', 'Cobrado en el local', 'Propinas equipo', 'A transferir']}>
               {data.by_restaurant.map((r) => (
                 <tr key={r.id}>
                   <td className="px-4 py-3 font-semibold">{r.name}</td>
@@ -94,12 +107,13 @@ export default function Payouts() {
                   <td className="px-4 py-3 text-right">{money(r.gross)}</td>
                   <td className="px-4 py-3 text-right text-neutral-500">−{money(r.commission)}</td>
                   <td className="px-4 py-3 text-right text-neutral-500">{money(r.cash_in_restaurant ?? 0)}</td>
-                  <td className="px-4 py-3 text-right font-extrabold">{money(r.payout - (r.cash_in_restaurant ?? 0))}</td>
+                  <td className="px-4 py-3 text-right text-neutral-500">{r.staff_tips > 0 ? `+${money(r.staff_tips)}` : '—'}</td>
+                  <td className="px-4 py-3 text-right font-extrabold">{money(r.payout - (r.cash_in_restaurant ?? 0) + r.staff_tips)}</td>
                 </tr>
               ))}
               {!data.by_restaurant.length && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-neutral-400">
+                  <td colSpan={7} className="px-4 py-6 text-center text-neutral-400">
                     Sin ventas en este periodo
                   </td>
                 </tr>

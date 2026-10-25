@@ -271,4 +271,23 @@ set local role anon;
 select pg_temp.ok((select count(*) = 1 from public.dish_options), 'anon ve las opciones');
 select pg_temp.ok((select igic_pct = 7 from public.settings), 'IGIC general por defecto 7 %');
 commit;
+
+-- ---------- Propinas al equipo desde el QR ----------
+begin;
+insert into public.staff_tips (restaurant_id, table_id, table_name, amount, payment_method, status, paid_at)
+  select t.restaurant_id, t.id, t.name, 3, 'test', 'paid', now() from public.restaurant_tables t limit 1;
+commit;
+select pg_temp.ok(not has_table_privilege('anon', 'public.staff_tips', 'select'), 'anon no ve propinas');
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '00000000-0000-0000-0000-000000000002';
+select pg_temp.ok((select count(*) = 1 from public.staff_tips), 'el restaurante ve sus propinas');
+select pg_temp.ok((public.staff_tips_report(null, now() - interval '1 day', now() + interval '1 day') ->> 'total')::numeric = 3, 'informe de propinas');
+commit;
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '00000000-0000-0000-0000-000000000003';
+select pg_temp.ok((select count(*) = 0 from public.staff_tips), 'otro restaurante no ve propinas ajenas');
+select pg_temp.ok((public.staff_tips_report(null, now() - interval '1 day', now() + interval '1 day') ->> 'total')::numeric = 0, 'informe ajeno vacío');
+commit;
 \echo TODAS LAS PRUEBAS OK

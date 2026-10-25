@@ -107,6 +107,10 @@ export default function TablesEditor({ restaurant: r }) {
           Imprime un QR por mesa. Al escanearlo, el cliente ve la carta y pide sin dirección ni gastos de envío; el pedido te llega al
           panel indicando la mesa. Comisión de rabeat en estos pedidos: <b>{ratesFor(settings, r, true).restaurant_commission_pct}%</b>.
         </p>
+        <p className="mt-2 text-sm text-white/75">
+          💛 Con el mismo QR el cliente también puede <b>dejar solo una propina</b> para el equipo, sin pedir. Te avisamos por email y se liquida íntegra, sin
+          comisión (la ves en <i>Ventas</i>).
+        </p>
       </div>
 
       <Card title="Añadir mesas" icon="plus">

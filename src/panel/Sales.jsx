@@ -5,7 +5,7 @@ import { useSettings } from '../lib/settings.jsx'
 import { useAsync } from '../lib/useAsync.js'
 import { myRestaurants } from '../lib/data.js'
 import { supabase, unwrap } from '../lib/supabase.js'
-import { money } from '../lib/format.js'
+import { dateTime, money, paymentLabel } from '../lib/format.js'
 import { PageTitle } from './Panel.jsx'
 import { DailyBars, PeriodPicker, periodRange, StatTile, Table } from './common.jsx'
 
@@ -64,6 +64,7 @@ export default function Sales() {
           <section className="rounded-3xl bg-white p-5 ring-1 ring-neutral-200/70">
             <DailyBars data={data.by_day} />
           </section>
+          <StaffTips period={period} restaurantId={restaurantId} />
           <section>
             <h2 className="mb-3 text-lg font-extrabold">Platos más vendidos</h2>
             {data.top_dishes.length ? (
@@ -83,5 +84,52 @@ export default function Sales() {
         </div>
       )}
     </>
+  )
+}
+
+// Propinas que los clientes dejan al equipo desde el QR de la mesa (sin pedido)
+function StaffTips({ period, restaurantId }) {
+  const { settings } = useSettings()
+  const { data } = useAsync(async () => {
+    const { from, to } = periodRange(period, settings.timezone)
+    return unwrap(await supabase.rpc('staff_tips_report', { p_restaurant: restaurantId || null, p_from: from.toISOString(), p_to: to.toISOString() }))
+  }, [period, restaurantId, settings.timezone])
+  if (!data) return null
+  return (
+    <section className="rounded-3xl bg-white p-5 ring-1 ring-neutral-200/70">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-extrabold">💛 Propinas para el equipo</h2>
+          <p className="text-xs text-neutral-500">Desde el QR de las mesas, sin pedido. Se liquidan íntegras, sin comisión.</p>
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-xl font-extrabold tabular-nums">{money(data.total)}</p>
+          <p className="text-xs text-neutral-500">{data.count} {data.count === 1 ? "propina" : "propinas"}</p>
+        </div>
+      </div>
+      {data.recent.length ? (
+        <ul className="divide-y divide-neutral-100">
+          {data.recent.map((t) => (
+            <li key={t.id} className="flex items-start gap-3 py-2.5">
+              <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-amber-50">💛</span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold">
+                  {t.table_name}
+                  {t.customer_name && <span className="font-semibold text-neutral-500"> · {t.customer_name}</span>}
+                </p>
+                {t.message && <p className="text-sm text-neutral-600 italic">“{t.message}”</p>}
+                <p className="text-[11px] text-neutral-400">
+                  {dateTime(t.paid_at, settings.timezone)} · {paymentLabel(t)}
+                  {!restaurantId && ` · ${t.restaurant}`}
+                </p>
+              </div>
+              <p className="shrink-0 font-extrabold tabular-nums">{money(t.amount)}</p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-neutral-500">Aún no hay propinas en este periodo.</p>
+      )}
+    </section>
   )
 }

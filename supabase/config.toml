@@ -16,3 +16,5 @@ verify_jwt = false
 verify_jwt = false
 [functions.public-config]
 verify_jwt = false
+[functions.table-tip]
+verify_jwt = false
