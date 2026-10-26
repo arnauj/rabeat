@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -87,6 +87,91 @@ export function PickerMap({ value, onChange, className = 'h-72' }) {
           <circle cx="12" cy="10" r="3" fill="#fff" />
         </svg>
       </div>
+    </div>
+  )
+}
+
+// Mapa de seguimiento en directo: el rider se desliza entre posiciones y el mapa le sigue
+// (hasta que el usuario mueve el mapa; entonces aparece «Centrar»).
+// target: hacia dónde va el rider ahora (restaurante para recoger o casa para entregar)
+export function LiveMap({ restaurant, home, rider, target, className = 'h-72' }) {
+  const el = useRef(null)
+  const map = useLeaflet(el, home ?? restaurant ?? ARRECIFE, 15, { scrollWheelZoom: false })
+  const parts = useRef({})
+  const [following, setFollowing] = useState(true)
+  const followRef = useRef(true)
+  followRef.current = following
+
+  // Restaurante y casa (fijos)
+  useEffect(() => {
+    const m = map.current
+    const p = parts.current
+    if (restaurant?.lat != null && !p.restaurant) p.restaurant = L.marker([restaurant.lat, restaurant.lng], { icon: icon('restaurant'), title: 'Restaurante' }).addTo(m)
+    if (home?.lat != null && !p.home) p.home = L.marker([home.lat, home.lng], { icon: icon('home'), title: 'Entrega' }).addTo(m)
+    const stop = () => setFollowing(false)
+    m.on('dragstart', stop)
+    return () => m.off('dragstart', stop)
+  }, [map, restaurant?.lat, restaurant?.lng, home?.lat, home?.lng])
+
+  // Rider: animación suave hasta la nueva posición
+  useEffect(() => {
+    const m = map.current
+    const p = parts.current
+    if (!rider || rider.lat == null) {
+      p.rider?.remove()
+      p.rider = null
+      return
+    }
+    const to = L.latLng(rider.lat, rider.lng)
+    if (!p.rider) {
+      p.rider = L.marker(to, { icon: icon('rider'), title: 'Rider', zIndexOffset: 1000 }).addTo(m)
+      return
+    }
+    const from = p.rider.getLatLng()
+    const start = performance.now()
+    let raf
+    const step = (t) => {
+      const k = Math.min(1, (t - start) / 1200)
+      const e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2
+      p.rider.setLatLng([from.lat + (to.lat - from.lat) * e, from.lng + (to.lng - from.lng) * e])
+      if (k < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [map, rider?.lat, rider?.lng]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Línea hacia el destino y encuadre automático
+  useEffect(() => {
+    const m = map.current
+    const p = parts.current
+    p.line?.remove()
+    const from = rider?.lat != null ? rider : restaurant
+    const to = rider?.lat != null ? target : home
+    if (from?.lat != null && to?.lat != null)
+      p.line = L.polyline(
+        [
+          [from.lat, from.lng],
+          [to.lat, to.lng],
+        ],
+        { color: '#E30613', weight: 4, dashArray: '8 10', opacity: 0.75 },
+      ).addTo(m)
+    if (!followRef.current) return
+    const pts = [from, to].filter((x) => x?.lat != null).map((x) => [x.lat, x.lng])
+    if (pts.length === 2) m.fitBounds(L.latLngBounds(pts), { padding: [56, 56], maxZoom: 17, animate: true })
+    else if (pts.length === 1) m.setView(pts[0], 16, { animate: true })
+  }, [map, rider?.lat, rider?.lng, target?.lat, target?.lng, restaurant, home, following]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="relative">
+      <div ref={el} className={`z-0 ${className}`} />
+      {!following && (
+        <button
+          onClick={() => setFollowing(true)}
+          className="absolute bottom-3 left-3 z-[500] flex items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-xs font-extrabold text-ink shadow-lg active:scale-95"
+        >
+          🎯 Centrar
+        </button>
+      )}
     </div>
   )
 }

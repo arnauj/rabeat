@@ -183,7 +183,7 @@ function OrderCard({ order: o, isSuper, tz, paper, onChange }) {
     if (status === 'cancelled' && !confirm(`¿Cancelar el pedido ${o.code}? Se avisará al cliente por email.`)) return
     setBusy(true)
     try {
-      await setOrderStatus(o.id, status)
+      await setOrderStatus(o.id, status, o.tracking_token)
       if (['cancelled', 'delivered'].includes(status)) callFunction('notify', { order_id: o.id, event: status }).catch(() => {})
       toast(`Pedido ${o.code}: ${ORDER_STATUS[status].label.toLowerCase()}`)
       onChange()

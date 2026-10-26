@@ -7,6 +7,7 @@ import { useAuth } from '../lib/auth.jsx'
 import { useSettings } from '../lib/settings.jsx'
 import { useAsync } from '../lib/useAsync.js'
 import { ORDER_SELECT, setOrderStatus } from '../lib/data.js'
+import { sendLive } from '../lib/live.js'
 import { callFunction, supabase, unwrap } from '../lib/supabase.js'
 import { dateTime, km, money, ORDER_STATUS, paymentLabel } from '../lib/format.js'
 import { navigate } from '../lib/router.js'
@@ -55,7 +56,7 @@ export default function RiderApp({ parts }) {
 
   const available = (orders ?? []).filter((o) => !o.rider_id)
   const mine = (orders ?? []).filter((o) => o.rider_id === profile?.id)
-  useLocationSharing(mine)
+  const sharing = useLocationSharing(mine)
 
   if (!ready || (user && !profile)) return <Loading />
   if (role !== 'rider')
@@ -96,6 +97,7 @@ export default function RiderApp({ parts }) {
 
       <main className="mx-auto max-w-2xl px-4 py-5">
         <InstallBanner className="mb-4" />
+        <LocationBanner state={sharing} count={mine.length} />
         {error && <ErrorBox error={error} onRetry={reload} />}
         {loading && !orders ? (
           <Loading />
@@ -153,25 +155,83 @@ export default function RiderApp({ parts }) {
   )
 }
 
-// Comparte la ubicación del rider con los clientes de sus pedidos en curso
+// Comparte la ubicación del rider en directo con los clientes de sus pedidos en curso:
+// cada ~3 s por el canal en vivo y cada 15 s en la base de datos (por si el cliente recarga)
 function useLocationSharing(mine) {
-  const ids = useMemo(() => mine.map((o) => o.id).join(','), [mine])
-  const last = useRef(0)
+  const tokens = useMemo(() => mine.map((o) => o.tracking_token).join(','), [mine])
+  const lastLive = useRef(0)
+  const lastSaved = useRef(0)
+  const [state, setState] = useState({ status: 'off', at: null })
+
   useEffect(() => {
-    if (!ids || !navigator.geolocation) return
+    if (!tokens) return setState({ status: 'off', at: null })
+    if (!navigator.geolocation) return setState({ status: 'unsupported', at: null })
+    setState((s) => (s.status === 'ok' ? s : { status: 'waiting', at: null }))
+    const list = tokens.split(',')
     const watch = navigator.geolocation.watchPosition(
       (pos) => {
-        if (Date.now() - last.current < 15000) return
-        last.current = Date.now()
-        ids.split(',').forEach((id) =>
-          supabase.rpc('rider_update_location', { p_order: id, p_lat: pos.coords.latitude, p_lng: pos.coords.longitude }).then(() => {}),
-        )
+        const { latitude: lat, longitude: lng, heading, accuracy } = pos.coords
+        const now = Date.now()
+        setState({ status: 'ok', at: now, accuracy })
+        if (now - lastLive.current >= 3000) {
+          lastLive.current = now
+          list.forEach((t) => sendLive(t, 'position', { lat, lng, heading: Number.isFinite(heading) ? heading : null }))
+        }
+        if (now - lastSaved.current >= 15000) {
+          lastSaved.current = now
+          supabase.rpc('rider_ping', { p_lat: lat, p_lng: lng }).then(() => {})
+        }
       },
-      () => {},
-      { enableHighAccuracy: true, maximumAge: 10000 },
+      (err) => setState({ status: err.code === 1 ? 'denied' : 'unavailable', at: null }),
+      { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 },
     )
     return () => navigator.geolocation.clearWatch(watch)
-  }, [ids])
+  }, [tokens])
+
+  // Pantalla encendida durante el reparto: con la pantalla apagada el navegador deja de dar la posición
+  useEffect(() => {
+    if (!tokens || !('wakeLock' in navigator)) return
+    let lock = null
+    const request = () => navigator.wakeLock.request('screen').then((l) => (lock = l)).catch(() => {})
+    request()
+    const onVisible = () => document.visibilityState === 'visible' && request()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible)
+      lock?.release().catch(() => {})
+    }
+  }, [tokens])
+
+  return state
+}
+
+// Estado del GPS para el rider mientras tiene pedidos en curso
+function LocationBanner({ state, count }) {
+  if (!count || state.status === 'off') return null
+  const ok = state.status === 'ok'
+  const text = {
+    ok: `Compartiendo tu ubicación en directo con ${count === 1 ? 'tu cliente' : `${count} clientes`}`,
+    waiting: 'Buscando tu ubicación…',
+    denied: 'Activa la ubicación para que tus clientes te sigan en el mapa',
+    unavailable: 'No llega la señal de GPS. Comprueba que la ubicación está activada',
+    unsupported: 'Este navegador no permite compartir la ubicación',
+  }[state.status]
+  return (
+    <div className={`mb-4 flex items-start gap-3 rounded-2xl p-3 text-sm ring-1 ${ok ? 'bg-emerald-50 text-emerald-900 ring-emerald-200' : 'bg-amber-50 text-amber-900 ring-amber-200'}`}>
+      <span className="relative mt-1 flex size-2.5 shrink-0">
+        {ok && <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />}
+        <span className={`relative inline-flex size-2.5 rounded-full ${ok ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+      </span>
+      <div className="min-w-0">
+        <p className="font-bold">{text}</p>
+        <p className="text-xs opacity-80">
+          {state.status === 'denied'
+            ? 'En Ajustes del móvil, permite la ubicación para este navegador o para la app de rabeat y vuelve a abrirla.'
+            : 'Mantén la app abierta durante el reparto para que te sigan en tiempo real.'}
+        </p>
+      </div>
+    </div>
+  )
 }
 
 function List({ title, orders, render, empty }) {
@@ -240,6 +300,7 @@ function AvailableOrder({ order: o, onAccepted }) {
     setBusy(true)
     try {
       unwrap(await supabase.rpc('rider_accept_order', { p_order: o.id }))
+      sendLive(o.tracking_token, 'status', { status: 'rider_assigned' })
       callFunction('notify', { order_id: o.id, event: 'rider_assigned' }).catch(() => {})
       toast(`Pedido ${o.code} aceptado`)
       onAccepted()
@@ -323,7 +384,7 @@ function ActiveOrder({ order: o, onChange }) {
             loading={busy}
             onClick={() =>
               act(async () => {
-                await setOrderStatus(o.id, 'delivered')
+                await setOrderStatus(o.id, 'delivered', o.tracking_token)
                 callFunction('notify', { order_id: o.id, event: 'delivered' }).catch(() => {})
               }, '¡Pedido entregado! 🎉')
             }
@@ -332,10 +393,10 @@ function ActiveOrder({ order: o, onChange }) {
           </Button>
         ) : (
           <div className="mt-3 flex gap-2">
-            <Button variant="soft" disabled={busy} onClick={() => act(() => supabase.rpc('rider_release_order', { p_order: o.id }).then(unwrap), 'Pedido liberado')}>
+            <Button variant="soft" disabled={busy} onClick={() => act(() => supabase.rpc('rider_release_order', { p_order: o.id }).then(unwrap).then(() => sendLive(o.tracking_token, 'status', { status: 'rider_released' })), 'Pedido liberado')}>
               Liberar
             </Button>
-            <Button className="flex-1 py-3.5" loading={busy} onClick={() => act(() => setOrderStatus(o.id, 'on_the_way'), 'Pedido recogido, ¡a toda liebre!')}>
+            <Button className="flex-1 py-3.5" loading={busy} onClick={() => act(() => setOrderStatus(o.id, 'on_the_way', o.tracking_token), 'Pedido recogido, ¡a toda liebre!')}>
               {o.status === 'ready' ? 'Recogido, voy en camino' : 'Recogido (aún en cocina)'}
             </Button>
           </div>

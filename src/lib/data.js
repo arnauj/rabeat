@@ -1,4 +1,5 @@
 import { supabase, unwrap } from './supabase.js'
+import { sendLive } from './live.js'
 
 const RESTAURANT_LIST = '*, opening_hours(*), dishes(name)'
 const RESTAURANT_FULL = '*, opening_hours(*), menu_categories(*), dishes(*, dish_option_groups(*, dish_options(*)))'
@@ -39,8 +40,11 @@ export async function getTracking(token) {
   return unwrap(await supabase.rpc('get_tracking', { p_token: token }))
 }
 
-export async function setOrderStatus(orderId, status) {
-  return unwrap(await supabase.rpc('set_order_status', { p_order: orderId, p_status: status }))
+export async function setOrderStatus(orderId, status, token) {
+  const order = unwrap(await supabase.rpc('set_order_status', { p_order: orderId, p_status: status }))
+  // Aviso instantáneo a la pantalla de seguimiento del cliente
+  sendLive(token ?? order?.tracking_token, 'status', { status })
+  return order
 }
 
 export const ORDER_SELECT = '*, restaurant:restaurants(id, name, slug, address, phone, lat, lng), items:order_items(*)'

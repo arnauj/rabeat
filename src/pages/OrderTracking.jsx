@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import Icon from '../components/Icon.jsx'
-import { MapView } from '../components/Map.jsx'
+import { LiveMap } from '../components/Map.jsx'
 import { Loading, Spinner, useToast } from '../components/ui.jsx'
 import { useAsync } from '../lib/useAsync.js'
 import { getTracking } from '../lib/data.js'
@@ -10,6 +10,7 @@ import { useCart } from '../lib/cart.jsx'
 import { money, paymentLabel } from '../lib/format.js'
 import { formatHour, slotLabel } from '../lib/time.js'
 import TaxBreakdown from '../components/TaxBreakdown.jsx'
+import { travel, useLiveOrder } from '../lib/live.js'
 
 const DINE_IN_STAGES = [
   { id: 'confirmed', label: 'Pedido recibido', hint: 'La cocina ya tiene tu pedido' },
@@ -33,12 +34,24 @@ export default function OrderTracking({ token, query }) {
   const tz = settings.timezone
   const { data: o, loading, reload } = useAsync(() => getTracking(token), [token])
   const [checking, setChecking] = useState(false)
+  const [live, setLive] = useState(null) // última posición recibida en directo
+  const [, tick] = useState(0)
 
-  // Actualización periódica mientras el pedido está activo
+  // En directo: posición del rider y cambios de estado al instante
+  useLiveOrder(token, {
+    onPosition: (pos) => setLive(pos),
+    onStatus: () => reload(true),
+  })
+
+  // Respaldo periódico (y refresco del «hace X s») mientras el pedido está activo
   useEffect(() => {
     if (!o || ['delivered', 'cancelled'].includes(o.status)) return
-    const t = setInterval(() => reload(true), 8000)
-    return () => clearInterval(t)
+    const t = setInterval(() => reload(true), 10000)
+    const s = setInterval(() => tick((n) => n + 1), 5000)
+    return () => {
+      clearInterval(t)
+      clearInterval(s)
+    }
   }, [o, reload])
 
   // Vuelta desde Stripe: comprueba el pago sin esperar al webhook
@@ -57,20 +70,6 @@ export default function OrderTracking({ token, query }) {
     if (o) rememberOrder({ token: o.token, code: o.code, restaurant: o.restaurant.name, created_at: o.created_at })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [o?.token])
-
-  const markers = useMemo(
-    () =>
-      o
-        ? [
-            { ...o.restaurant, kind: 'restaurant', label: o.restaurant.name },
-            { lat: o.lat, lng: o.lng, kind: 'home', label: 'Entrega' },
-            ...(o.rider_lat && ['confirmed', 'preparing', 'ready', 'on_the_way'].includes(o.status)
-              ? [{ lat: o.rider_lat, lng: o.rider_lng, kind: 'rider', label: 'Rider' }]
-              : []),
-          ]
-        : [],
-    [o],
-  )
 
   if (loading && !o) return <Loading label="Buscando tu pedido…" />
   if (!o)
@@ -93,7 +92,18 @@ export default function OrderTracking({ token, query }) {
   const cancelled = o.status === 'cancelled'
   const pendingPayment = o.status === 'pending_payment'
   const scheduledWaiting = o.scheduled_for && o.status === 'confirmed'
-  const eta = new Date(new Date(o.paid_at ?? o.created_at).getTime() + (o.restaurant.prep_max + Math.round(o.distance_km * 3 + 5)) * 60_000)
+  // Posición del rider: la más reciente entre el directo y la guardada
+  const saved = o.rider_lat != null ? { lat: o.rider_lat, lng: o.rider_lng, at: new Date(o.rider_location_at).getTime() } : null
+  const active = ['confirmed', 'preparing', 'ready', 'on_the_way'].includes(o.status) && o.rider
+  const riderPos = active ? ([live, saved].filter(Boolean).sort((a, b) => b.at - a.at)[0] ?? null) : null
+  const home = o.lat != null ? { lat: o.lat, lng: o.lng } : null
+  const goingHome = o.status === 'on_the_way'
+  const target = goingHome ? home : o.restaurant
+  const leg = travel(riderPos, target)
+  const homeLeg = goingHome ? leg : travel(o.restaurant, home)
+  const liveEta = goingHome && leg ? new Date(Date.now() + leg.min * 60_000) : null
+  const eta = liveEta ?? new Date(new Date(o.paid_at ?? o.created_at).getTime() + (o.restaurant.prep_max + Math.round(o.distance_km * 3 + 5)) * 60_000)
+  const times = { confirmed: o.paid_at ?? o.created_at, ready: o.ready_at, on_the_way: o.picked_up_at, delivered: o.delivered_at }
 
   return (
     <div className="min-h-dvh bg-neutral-50 pb-10">
@@ -149,15 +159,20 @@ export default function OrderTracking({ token, query }) {
             </div>
           ) : (
             <>
-              <p className="mt-2 text-sm text-white/70">{delivered ? 'Tu pedido ya está en casa' : o.scheduled_for ? 'Entrega programada' : 'Llegada estimada'}</p>
+              <p className="mt-2 text-sm text-white/70">
+                {delivered ? 'Tu pedido ya está en casa' : liveEta ? `Llega en unos ${leg.min} min` : o.scheduled_for ? 'Entrega programada' : 'Llegada estimada'}
+              </p>
               <p className="font-display text-5xl font-black tracking-tight italic">
-                {delivered ? '¡Entregado!' : o.scheduled_for ? formatHour(new Date(o.scheduled_for), tz) : formatHour(eta, tz)}
+                {delivered ? '¡Entregado!' : liveEta ? formatHour(liveEta, tz) : o.scheduled_for ? formatHour(new Date(o.scheduled_for), tz) : formatHour(eta, tz)}
               </p>
             </>
           )}
           {!pendingPayment && !cancelled && !dineIn && (
             <div className="mt-4 overflow-hidden rounded-3xl ring-1 ring-white/10">
-              <MapView markers={markers} className="h-64 sm:h-80" />
+              <div className="relative">
+                <LiveMap restaurant={o.restaurant} home={home} rider={riderPos} target={target} className="h-72 sm:h-96" />
+                {active && <LiveBadge pos={riderPos} goingHome={goingHome} leg={leg} />}
+              </div>
             </div>
           )}
         </div>
@@ -189,10 +204,13 @@ export default function OrderTracking({ token, query }) {
                     >
                       {done ? <Icon name="check" className="size-4" strokeWidth={3} /> : i + 1}
                     </span>
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className={`text-sm font-bold ${i > stageIndex ? 'text-neutral-400' : ''}`}>{s.label}</p>
-                      {current && !delivered && <p className="text-xs text-neutral-500">{s.hint}</p>}
+                      {current && !delivered && <p className="text-xs text-neutral-500">{stageHint(s, o, leg, homeLeg)}</p>}
                     </div>
+                    {(done || current) && times[s.id] && (
+                      <span className="shrink-0 text-xs font-semibold text-neutral-400 tabular-nums">{formatHour(new Date(times[s.id]), tz)}</span>
+                    )}
                   </li>
                 )
               })}
@@ -374,6 +392,47 @@ function Line({ label, value }) {
     <div className="flex justify-between">
       <dt className="text-neutral-500">{label}</dt>
       <dd className="font-semibold tabular-nums">{value}</dd>
+    </div>
+  )
+}
+
+// Texto de la etapa actual con lo que está haciendo el rider en este momento
+function stageHint(s, o, leg, homeLeg) {
+  if (o.order_type === 'dine_in') return s.hint
+  if (o.status === 'on_the_way') return leg ? `Está a ${km(leg.km)} de tu casa · unos ${leg.min} min` : s.hint
+  if (o.rider && ['confirmed', 'preparing', 'ready'].includes(o.status)) {
+    const name = o.rider.name ?? 'Tu rider'
+    if (o.status === 'ready') return leg && leg.km > 0.08 ? `${name} va a recogerlo · a ${km(leg.km)} del restaurante` : `${name} lo está recogiendo`
+    return `${s.hint}. ${name} ya está asignado${leg ? ` (a ${km(leg.km)} del restaurante)` : ''}`
+  }
+  if (!o.rider && ['preparing', 'ready'].includes(o.status)) return `${s.hint} · buscando rider${homeLeg ? ` para ${km(homeLeg.km)}` : ''}`
+  return s.hint
+}
+
+const km = (n) => (n < 1 ? `${Math.round(n * 1000 / 10) * 10} m` : `${n.toFixed(1).replace('.', ',')} km`)
+
+function ago(at) {
+  const s = Math.max(0, Math.round((Date.now() - at) / 1000))
+  return s < 10 ? 'ahora mismo' : s < 60 ? `hace ${s} s` : `hace ${Math.round(s / 60)} min`
+}
+
+// Insignia sobre el mapa: en directo / última posición y distancia
+function LiveBadge({ pos, goingHome, leg }) {
+  const fresh = pos && Date.now() - pos.at < 60_000
+  return (
+    <div className="pointer-events-none absolute inset-x-3 top-3 z-[500] flex flex-wrap items-center gap-2">
+      <span className="flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-extrabold text-ink shadow-lg">
+        <span className="relative flex size-2">
+          {fresh && <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />}
+          <span className={`relative inline-flex size-2 rounded-full ${fresh ? 'bg-emerald-500' : 'bg-neutral-400'}`} />
+        </span>
+        {!pos ? 'Esperando la ubicación del rider' : fresh ? `En directo · ${ago(pos.at)}` : `Última posición ${ago(pos.at)}`}
+      </span>
+      {pos && leg && (
+        <span className="rounded-full bg-ink/90 px-3 py-1.5 text-xs font-bold text-white shadow-lg">
+          🛵 {goingHome ? 'hacia tu casa' : 'hacia el restaurante'} · {km(leg.km)}
+        </span>
+      )}
     </div>
   )
 }
