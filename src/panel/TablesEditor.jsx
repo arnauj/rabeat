@@ -13,35 +13,160 @@ export const tableUrl = (code) => `${window.location.origin}${window.location.pa
 const qrDataUrl = (code, width = 600) =>
   QRCode.toDataURL(tableUrl(code), { width, margin: 1, errorCorrectionLevel: 'M', color: { dark: '#111111', light: '#ffffff' } })
 
-// Tarjeta imprimible: nombre del local, QR, mesa y llamada a la acción
-async function tableCard(table, restaurantName) {
-  const W = 800
-  const H = 1100
-  const canvas = Object.assign(document.createElement('canvas'), { width: W, height: H })
-  const ctx = canvas.getContext('2d')
-  ctx.fillStyle = '#ffffff'
-  ctx.fillRect(0, 0, W, H)
-  ctx.fillStyle = '#E30613'
-  ctx.fillRect(0, 0, W, 150)
-  ctx.fillStyle = '#ffffff'
-  ctx.textAlign = 'center'
-  ctx.font = 'italic 900 56px Rubik, sans-serif'
-  ctx.fillText(restaurantName, W / 2, 98, W - 80)
-  const qr = await new Promise((resolve) => {
+const loadImage = (src) =>
+  new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => resolve(img)
-    qrDataUrl(table.code, 620).then((url) => (img.src = url))
+    img.onerror = reject
+    img.src = src
   })
-  ctx.drawImage(qr, (W - 620) / 2, 200, 620, 620)
-  ctx.fillStyle = '#111111'
-  ctx.font = '800 72px "Plus Jakarta Sans", sans-serif'
-  ctx.fillText(table.name, W / 2, 920, W - 80)
-  ctx.font = '600 34px "Plus Jakarta Sans", sans-serif'
-  ctx.fillStyle = '#555555'
-  ctx.fillText('Escanea y pide desde tu mesa', W / 2, 985)
-  ctx.font = 'italic 900 30px Rubik, sans-serif'
-  ctx.fillStyle = '#E30613'
-  ctx.fillText('rabeat', W / 2, 1050)
+
+// Recorta el texto con "…" si no cabe en el ancho dado
+function fitText(ctx, text, maxWidth) {
+  if (ctx.measureText(text).width <= maxWidth) return text
+  let t = text
+  while (t.length > 1 && ctx.measureText(`${t}…`).width > maxWidth) t = t.slice(0, -1)
+  return `${t}…`
+}
+
+const BRAND = '#E30613'
+const INK = '#111111'
+
+// Tarjeta imprimible: cabecera con el local, QR con la mesa y, abajo, publicidad de rabeat con la mascota
+export async function tableCard(table, restaurantName) {
+  const W = 1200
+  const H = 1800
+  const canvas = Object.assign(document.createElement('canvas'), { width: W, height: H })
+  const ctx = canvas.getContext('2d')
+  await document.fonts?.ready
+  const [qr, mascot] = await Promise.all([loadImage(await qrDataUrl(table.code, 640)), loadImage('mascot.png').catch(() => null)])
+
+  // Fondo crema con lunares suaves
+  ctx.fillStyle = '#FFF7F0'
+  ctx.fillRect(0, 0, W, H)
+  ctx.fillStyle = 'rgba(227,6,19,0.06)'
+  for (let y = 300; y < 1290; y += 46) for (let x = (y / 46) % 2 ? 23 : 0; x < W; x += 46) {
+    ctx.beginPath()
+    ctx.arc(x, y, 4, 0, Math.PI * 2)
+    ctx.fill()
+  }
+
+  // Cabecera roja con borde inferior curvo
+  ctx.fillStyle = BRAND
+  ctx.beginPath()
+  ctx.moveTo(0, 0)
+  ctx.lineTo(W, 0)
+  ctx.lineTo(W, 230)
+  ctx.quadraticCurveTo(W / 2, 330, 0, 230)
+  ctx.closePath()
+  ctx.fill()
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'alphabetic'
+  ctx.fillStyle = '#ffffff'
+  ctx.font = 'italic 900 88px Rubik, sans-serif'
+  ctx.fillText(fitText(ctx, restaurantName, W - 120), W / 2, 140)
+  ctx.font = '700 38px "Plus Jakarta Sans", sans-serif'
+  ctx.fillStyle = 'rgba(255,255,255,0.9)'
+  ctx.fillText('Escanea · Pide · Disfruta', W / 2, 205)
+
+  // Tarjeta blanca del QR con sombra
+  const card = { x: (W - 760) / 2, y: 330, w: 760, h: 860 }
+  ctx.save()
+  ctx.shadowColor = 'rgba(17,17,17,0.18)'
+  ctx.shadowBlur = 50
+  ctx.shadowOffsetY = 16
+  ctx.fillStyle = '#ffffff'
+  ctx.beginPath()
+  ctx.roundRect(card.x, card.y, card.w, card.h, 48)
+  ctx.fill()
+  ctx.restore()
+
+  const q = { x: (W - 640) / 2, y: card.y + 60, s: 640 }
+  ctx.drawImage(qr, q.x, q.y, q.s, q.s)
+  // Esquinas rojas de "visor" alrededor del QR
+  ctx.strokeStyle = BRAND
+  ctx.lineWidth = 12
+  ctx.lineCap = 'round'
+  const pad = 24
+  const len = 70
+  const corners = [
+    [q.x - pad, q.y - pad, 1, 1],
+    [q.x + q.s + pad, q.y - pad, -1, 1],
+    [q.x - pad, q.y + q.s + pad, 1, -1],
+    [q.x + q.s + pad, q.y + q.s + pad, -1, -1],
+  ]
+  for (const [cx, cy, dx, dy] of corners) {
+    ctx.beginPath()
+    ctx.moveTo(cx, cy + dy * len)
+    ctx.lineTo(cx, cy)
+    ctx.lineTo(cx + dx * len, cy)
+    ctx.stroke()
+  }
+
+  // Píldora con el nombre de la mesa
+  ctx.font = '800 64px "Plus Jakarta Sans", sans-serif'
+  const label = fitText(ctx, table.name, card.w - 120)
+  const pw = ctx.measureText(label).width + 90
+  ctx.fillStyle = INK
+  ctx.beginPath()
+  ctx.roundRect((W - pw) / 2, card.y + card.h - 120, pw, 96, 48)
+  ctx.fill()
+  ctx.fillStyle = '#ffffff'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(label, W / 2, card.y + card.h - 70)
+
+  // Banda publicitaria de rabeat
+  const band = 1290
+  ctx.fillStyle = INK
+  ctx.beginPath()
+  ctx.moveTo(0, band + 70)
+  ctx.quadraticCurveTo(W / 2, band - 40, W, band + 70)
+  ctx.lineTo(W, H)
+  ctx.lineTo(0, H)
+  ctx.closePath()
+  ctx.fill()
+  // Disco crema con aro rojo para que la mascota destaque sobre la banda oscura
+  const disc = { x: 925, y: 1555, r: 205 }
+  ctx.fillStyle = BRAND
+  ctx.beginPath()
+  ctx.arc(disc.x, disc.y, disc.r + 14, 0, Math.PI * 2)
+  ctx.fill()
+  ctx.fillStyle = '#FFF7F0'
+  ctx.beginPath()
+  ctx.arc(disc.x, disc.y, disc.r, 0, Math.PI * 2)
+  ctx.fill()
+  if (mascot) {
+    const mh = 520
+    const mw = (mascot.width / mascot.height) * mh
+    ctx.drawImage(mascot, disc.x - mw / 2 + 20, H - mh - 30, mw, mh)
+  }
+
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'alphabetic'
+  const tx = 70
+  ctx.fillStyle = BRAND
+  ctx.font = '800 30px "Plus Jakarta Sans", sans-serif'
+  ctx.fillText('¿TE HA GUSTADO?', tx, band + 150)
+  ctx.fillStyle = '#ffffff'
+  ctx.font = 'italic 900 70px Rubik, sans-serif'
+  ctx.fillText('Pídelo también', tx, band + 225)
+  ctx.fillText('a domicilio', tx, band + 298)
+  ctx.font = '600 32px "Plus Jakarta Sans", sans-serif'
+  ctx.fillStyle = 'rgba(255,255,255,0.75)'
+  ctx.fillText('Los mejores restaurantes de', tx, band + 352)
+  ctx.fillText('Lanzarote, en tu puerta.', tx, band + 392)
+  // Botón con la web
+  ctx.font = 'italic 900 44px Rubik, sans-serif'
+  const url = 'rabeat.eu'
+  const bw = ctx.measureText(url).width + 80
+  ctx.fillStyle = BRAND
+  ctx.beginPath()
+  ctx.roundRect(tx, band + 420, bw, 76, 38)
+  ctx.fill()
+  ctx.fillStyle = '#ffffff'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(url, tx + 40, band + 460)
+
   return canvas.toDataURL('image/png')
 }
 
@@ -92,8 +217,8 @@ export default function TablesEditor({ restaurant: r }) {
     const cards = await Promise.all(active.map((t) => tableCard(t, r.name)))
     win.document.open()
     win.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>QR mesas · ${r.name}</title>
-      <style>body{margin:0;font-family:sans-serif}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8mm;padding:8mm}
-      img{width:100%;border:1px solid #ddd;border-radius:6mm;page-break-inside:avoid}@media print{.grid{padding:0}}</style></head>
+      <style>@page{size:A4;margin:8mm}body{margin:0;font-family:sans-serif}.grid{display:grid;grid-template-columns:repeat(2,88mm);justify-content:center;gap:6mm;padding:8mm}
+      img{width:88mm;border:1px solid #ddd;border-radius:5mm;break-inside:avoid}@media print{.grid{padding:0}}</style></head>
       <body><div class="grid">${cards.map((c) => `<img src="${c}">`).join('')}</div>
       <script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`)
     win.document.close()
