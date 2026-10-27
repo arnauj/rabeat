@@ -146,15 +146,14 @@ export async function tableCard(table, restaurantName) {
   const tx = 70
   ctx.fillStyle = BRAND
   ctx.font = '800 30px "Plus Jakarta Sans", sans-serif'
-  ctx.fillText('¿TE HA GUSTADO?', tx, band + 150)
+  ctx.fillText('POWERED BY', tx, band + 150)
   ctx.fillStyle = '#ffffff'
-  ctx.font = 'italic 900 70px Rubik, sans-serif'
-  ctx.fillText('Pídelo también', tx, band + 225)
-  ctx.fillText('a domicilio', tx, band + 298)
+  ctx.font = 'italic 900 140px Rubik, sans-serif'
+  ctx.fillText('rabeat', tx - 6, band + 285)
   ctx.font = '600 32px "Plus Jakarta Sans", sans-serif'
   ctx.fillStyle = 'rgba(255,255,255,0.75)'
-  ctx.fillText('Los mejores restaurantes de', tx, band + 352)
-  ctx.fillText('Lanzarote, en tu puerta.', tx, band + 392)
+  ctx.fillText('Tu carta en el móvil:', tx, band + 352)
+  ctx.fillText('pide desde la mesa, sin esperas.', tx, band + 392)
   // Botón con la web
   ctx.font = 'italic 900 44px Rubik, sans-serif'
   const url = 'rabeat.eu'
