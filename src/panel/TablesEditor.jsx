@@ -167,11 +167,21 @@ export async function tableCard(table, restaurantName) {
   ctx.textBaseline = 'middle'
   ctx.fillText(url, tx + 40, band + 460)
 
-  return canvas.toDataURL('image/png')
+  return canvas
 }
 
-function download(dataUrl, name) {
-  Object.assign(document.createElement('a'), { href: dataUrl, download: name }).click()
+const cardDataUrl = async (table, restaurantName) => (await tableCard(table, restaurantName)).toDataURL('image/png')
+const fileName = (table) => `qr-${table.name.toLowerCase().replace(/\s+/g, '-')}.png`
+
+// Guarda la tarjeta. Se llama de forma síncrona desde el clic: iOS descarta descargas y el menú de compartir si antes hay un await.
+// En móvil abre el menú de compartir (Guardar imagen, WhatsApp…); en escritorio descarga el PNG.
+function saveFile(file, url) {
+  const touch = window.matchMedia?.('(pointer: coarse)').matches
+  if (touch && navigator.canShare?.({ files: [file] })) return navigator.share({ files: [file] }).catch(() => {})
+  const a = Object.assign(document.createElement('a'), { href: url, download: file.name })
+  document.body.append(a)
+  a.click()
+  a.remove()
 }
 
 export default function TablesEditor({ restaurant: r }) {
@@ -214,7 +224,7 @@ export default function TablesEditor({ restaurant: r }) {
     const win = window.open('', '_blank')
     if (!win) return toast('Permite las ventanas emergentes para imprimir', 'error')
     win.document.write('<p style="font-family:sans-serif">Preparando QR…</p>')
-    const cards = await Promise.all(active.map((t) => tableCard(t, r.name)))
+    const cards = await Promise.all(active.map((t) => cardDataUrl(t, r.name)))
     win.document.open()
     win.document.write(`<!doctype html><html lang="es"><head><meta charset="utf-8"><title>QR mesas · ${r.name}</title>
       <style>@page{size:A4;margin:8mm}body{margin:0;font-family:sans-serif}.grid{display:grid;grid-template-columns:repeat(2,88mm);justify-content:center;gap:6mm;padding:8mm}
@@ -292,12 +302,29 @@ export default function TablesEditor({ restaurant: r }) {
 
 function TableCard({ table: t, restaurantName, onChange }) {
   const toast = useToast()
-  const [qr, setQr] = useState(null)
+  const [card, setCard] = useState(null)
   const [name, setName] = useState(t.name)
 
+  // Genera la tarjeta con el diseño completo: una miniatura ligera para la lista y el PNG listo para guardar al instante
   useEffect(() => {
-    qrDataUrl(t.code, 300).then(setQr)
-  }, [t.code])
+    let alive = true
+    let url
+    tableCard(t, restaurantName).then((canvas) => {
+      const thumb = Object.assign(document.createElement('canvas'), { width: 240, height: 360 })
+      const tctx = thumb.getContext('2d')
+      tctx.imageSmoothingQuality = 'high'
+      tctx.drawImage(canvas, 0, 0, 240, 360)
+      canvas.toBlob((blob) => {
+        if (!alive || !blob) return
+        url = URL.createObjectURL(blob)
+        setCard({ thumb: thumb.toDataURL('image/png'), url, file: new File([blob], fileName(t), { type: 'image/png' }) })
+      }, 'image/png')
+    })
+    return () => {
+      alive = false
+      if (url) URL.revokeObjectURL(url)
+    }
+  }, [t.code, t.name, restaurantName])
 
   const update = async (patch, ok) => {
     const { error } = await supabase.from('restaurant_tables').update(patch).eq('id', t.id)
@@ -316,8 +343,8 @@ function TableCard({ table: t, restaurantName, onChange }) {
 
   return (
     <article className={`flex gap-3 rounded-3xl bg-white p-3 ring-1 ring-neutral-200/70 ${t.active ? '' : 'opacity-60'}`}>
-      <div className="size-28 shrink-0 overflow-hidden rounded-2xl bg-white ring-1 ring-neutral-200">
-        {qr && <img src={qr} alt={`QR de ${t.name}`} className="size-full" />}
+      <div className="h-36 w-24 shrink-0 overflow-hidden rounded-2xl bg-neutral-100 ring-1 ring-neutral-200">
+        {card && <img src={card.thumb} alt={`QR de ${t.name}`} className="size-full object-cover" />}
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <input
@@ -330,10 +357,11 @@ function TableCard({ table: t, restaurantName, onChange }) {
         <Toggle checked={t.active} onChange={(v) => update({ active: v }, v ? 'Mesa activada' : 'Mesa desactivada')} label={<span className="text-xs">Activa</span>} />
         <div className="mt-auto flex gap-1">
           <button
-            onClick={async () => download(await tableCard(t, restaurantName), `qr-${t.name.toLowerCase().replace(/\s+/g, '-')}.png`)}
-            className="flex-1 rounded-xl bg-neutral-100 py-2 text-xs font-bold"
+            onClick={() => card && saveFile(card.file, card.url)}
+            disabled={!card}
+            className="flex-1 rounded-xl bg-neutral-100 py-2 text-xs font-bold disabled:opacity-50"
           >
-            Descargar
+            {card ? 'Descargar' : 'Preparando…'}
           </button>
           <button
             onClick={() => navigator.clipboard?.writeText(tableUrl(t.code)).then(() => toast('Enlace copiado'))}
