@@ -1,9 +1,10 @@
 // Propina para el equipo del restaurante desde el QR de una mesa, sin pedido
 import { adminClient } from '../_shared/db.ts'
 import { handle, HttpError, json, siteUrl } from '../_shared/http.ts'
-import { cents, onlineMethods, stripe, stripeEnabled } from '../_shared/stripe.ts'
+import { cents, onlineMethods, stripeEnabled } from '../_shared/stripe.ts'
 import { syncSession } from '../_shared/payments.ts'
 import { notifyStaffTip } from '../_shared/notify.ts'
+import { checkoutSession, payoutAccount } from '../_shared/connect.ts'
 
 type Body = { action?: 'create' | 'status'; id?: string; table_code?: string; amount?: number; payment_method?: string; name?: string; message?: string }
 
@@ -63,7 +64,9 @@ Deno.serve(
     }
 
     const back = `${siteUrl()}#/mesa/${table.code}/propina`
-    const session = await stripe<{ id: string; url: string }>('checkout/sessions', {
+    // Stripe Connect: la propina íntegra va a la cuenta del restaurante si la tiene activa
+    const account = await payoutAccount(restaurant.id)
+    const { session, account: paidTo } = await checkoutSession({
       mode: 'payment',
       locale: 'es',
       payment_method_types: { 0: method },
@@ -75,11 +78,14 @@ Deno.serve(
       expires_at: Math.floor(Date.now() / 1000) + 31 * 60,
       success_url: `${back}?gracias=${tip.id}`,
       cancel_url: back,
-    }).catch(async (e) => {
+    }, account, cents(amount)).catch(async (e) => {
       await db.from('staff_tips').update({ status: 'failed' }).eq('id', tip.id)
       throw new HttpError(502, `No se pudo iniciar el pago. Prueba con otro método. (${e instanceof Error ? e.message : e})`)
     })
-    await db.from('staff_tips').update({ stripe_session_id: session.id }).eq('id', tip.id)
+    await db
+      .from('staff_tips')
+      .update({ stripe_session_id: session.id, stripe_account_id: paidTo, connect_amount: paidTo ? amount : null })
+      .eq('id', tip.id)
     return json({ id: tip.id, checkout_url: session.url })
   }),
 )

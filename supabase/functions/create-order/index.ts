@@ -2,9 +2,10 @@
 import { adminClient, currentUser } from '../_shared/db.ts'
 import { handle, HttpError, json, siteUrl, trackingUrl } from '../_shared/http.ts'
 import { getStatus, isValidSlot } from '../_shared/hours.js'
-import { deliveryDistanceKm, grossPrice, inDeliveryRange, quote, ratesFor, resolveOptions, taxRate } from '../_shared/pricing.js'
+import { connectTransfer, deliveryDistanceKm, grossPrice, inDeliveryRange, quote, ratesFor, resolveOptions, taxRate } from '../_shared/pricing.js'
 import { cents, onlineMethods, stripe, stripeEnabled } from '../_shared/stripe.ts'
 import { notifyOrder } from '../_shared/notify.ts'
+import { checkoutSession, payoutAccount } from '../_shared/connect.ts'
 
 type Body = {
   dry_run?: boolean
@@ -243,7 +244,10 @@ Deno.serve(
       discounts = { 0: { coupon: coupon.id } }
     }
 
-    const session = await stripe<{ id: string; url: string }>('checkout/sessions', {
+    // Stripe Connect: si el restaurante tiene su cuenta activa, Stripe le transfiere su parte al cobrar
+    const account = await payoutAccount(restaurant.id)
+    const transfer = connectTransfer(q)
+    const { session, account: paidTo } = await checkoutSession({
       mode: 'payment',
       locale: 'es',
       // Tarjeta (con Apple Pay / Google Pay en los dispositivos compatibles), PayPal o Bizum
@@ -257,12 +261,15 @@ Deno.serve(
       expires_at: Math.floor(Date.now() / 1000) + 31 * 60,
       success_url: `${trackingUrl(order.tracking_token)}?pago=ok`,
       cancel_url: `${siteUrl()}#/pago?cancelado=${order.code}`,
-    }).catch(async (e) => {
+    }, account, cents(transfer)).catch(async (e) => {
       // Sin sesión de pago el pedido no puede seguir: se anula para que no quede colgado
       await db.from('orders').update({ status: 'cancelled', payment_status: 'failed', cancelled_at: new Date().toISOString() }).eq('id', order.id)
       throw new HttpError(502, `No se pudo iniciar el pago${method === 'paypal' ? ' con PayPal' : method === 'bizum' ? ' con Bizum' : ''}. Prueba con otro método. (${e instanceof Error ? e.message : e})`)
     })
-    await db.from('orders').update({ stripe_session_id: session.id }).eq('id', order.id)
+    await db
+      .from('orders')
+      .update({ stripe_session_id: session.id, stripe_account_id: paidTo, connect_amount: paidTo ? transfer : null })
+      .eq('id', order.id)
     return json({ token: order.tracking_token, code: order.code, checkout_url: session.url })
   }),
 )

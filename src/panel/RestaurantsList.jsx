@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
 import { Button, ErrorBox, Field, Loading, Cover, Sheet, SheetHeader, useNow, useRestaurantStatus, useToast } from '../components/ui.jsx'
 import { useAuth } from '../lib/auth.jsx'
+import { useSettings } from '../lib/settings.jsx'
 import { useAsync } from '../lib/useAsync.js'
 import { myRestaurants } from '../lib/data.js'
 import { supabase, unwrap } from '../lib/supabase.js'
@@ -9,10 +10,16 @@ import { slugify } from '../lib/format.js'
 import { navigate } from '../lib/router.js'
 import { categoryLabel } from '../data/categories.js'
 import { PageTitle } from './Panel.jsx'
+import { CONNECT_BADGE, connectState } from './StripeConnect.jsx'
 
 export default function RestaurantsList() {
   const { profile } = useAuth()
   const { data, error, loading, reload } = useAsync(() => myRestaurants(profile), [profile.id])
+  // Estado de Stripe Connect de cada restaurante (sin la tabla aún creada, simplemente no se muestra)
+  const { data: accounts } = useAsync(async () => {
+    const { data, error } = await supabase.from('restaurant_stripe_accounts').select('restaurant_id, transfers_active, details_submitted')
+    return error ? null : Object.fromEntries(data.map((a) => [a.restaurant_id, a]))
+  }, [profile.id])
   const [creating, setCreating] = useState(false)
   const [query, setQuery] = useState('')
   const list = (data ?? []).filter((r) => r.name.toLowerCase().includes(query.toLowerCase()))
@@ -45,7 +52,7 @@ export default function RestaurantsList() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {list.map((r) => (
-            <Row key={r.id} restaurant={r} />
+            <Row key={r.id} restaurant={r} account={accounts?.[r.id]} accounts={accounts} />
           ))}
         </div>
       )}
@@ -56,9 +63,11 @@ export default function RestaurantsList() {
   )
 }
 
-function Row({ restaurant: r }) {
+function Row({ restaurant: r, account, accounts }) {
   const now = useNow()
   const status = useRestaurantStatus(r, now)
+  const { config } = useSettings()
+  const stripe = config?.payments === 'stripe' && accounts && CONNECT_BADGE[connectState(account)]
   return (
     <a href={`#/panel/restaurantes/${r.id}`} className="flex min-w-0 gap-3 rounded-3xl bg-white p-3 ring-1 ring-neutral-200/70 transition hover:shadow-lg">
       <Cover restaurant={r} variant="thumb" className="size-20 shrink-0 rounded-2xl" />
@@ -75,6 +84,7 @@ function Row({ restaurant: r }) {
               {status.open ? 'Abierto' : 'Cerrado'}
             </span>
           )}
+          {stripe && <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${stripe.className}`}>{stripe.label}</span>}
         </div>
       </div>
       <Icon name="right" className="size-5 self-center text-neutral-300" />

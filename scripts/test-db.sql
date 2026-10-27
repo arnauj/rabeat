@@ -290,4 +290,23 @@ set local request.jwt.claim.sub = '00000000-0000-0000-0000-000000000003';
 select pg_temp.ok((select count(*) = 0 from public.staff_tips), 'otro restaurante no ve propinas ajenas');
 select pg_temp.ok((public.staff_tips_report(null, now() - interval '1 day', now() + interval '1 day') ->> 'total')::numeric = 0, 'informe ajeno vacío');
 commit;
+-- ---------- Stripe Connect ----------
+begin;
+insert into public.restaurant_stripe_accounts (restaurant_id, account_id, transfers_active)
+  select id, 'acct_test', true from public.restaurants where owner_id = '00000000-0000-0000-0000-000000000002' limit 1;
+update public.staff_tips set connect_amount = 3, stripe_account_id = 'acct_test';
+commit;
+select pg_temp.ok(not has_table_privilege('anon', 'public.restaurant_stripe_accounts', 'select'), 'anon no ve cuentas de Stripe');
+select pg_temp.ok(not has_table_privilege('authenticated', 'public.restaurant_stripe_accounts', 'update'), 'nadie edita su cuenta de Stripe desde la app');
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '00000000-0000-0000-0000-000000000002';
+select pg_temp.ok((select count(*) = 1 from public.restaurant_stripe_accounts), 'el restaurante ve su cuenta de Stripe');
+select pg_temp.ok((public.staff_tips_report(null, now() - interval '1 day', now() + interval '1 day') -> 'by_restaurant' -> 0 ->> 'connect_total')::numeric = 3, 'propinas transferidas por Stripe');
+commit;
+begin;
+set local role authenticated;
+set local request.jwt.claim.sub = '00000000-0000-0000-0000-000000000003';
+select pg_temp.ok((select count(*) = 0 from public.restaurant_stripe_accounts), 'otro restaurante no ve cuentas ajenas');
+commit;
 \echo TODAS LAS PRUEBAS OK
