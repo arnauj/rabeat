@@ -2,7 +2,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { getStatus, deliverySlots, isValidSlot, formatHour, statusLabel, zonedTime } from '../supabase/functions/_shared/hours.js'
-import { quote, customerPrice, deliveryFee, haversineKm, resolveOptions, grossPrice, ratesFor } from '../supabase/functions/_shared/pricing.js'
+import { quote, customerPrice, deliveryFee, haversineKm, resolveOptions, grossPrice, ratesFor, connectTransfer } from '../supabase/functions/_shared/pricing.js'
 
 const tz = 'Atlantic/Canary'
 // 2026-10-24 es sábado; en octubre Canarias está en UTC+1 (verano) hasta el 25
@@ -100,4 +100,18 @@ test('comisión y recargo propios de cada restaurante', () => {
   assert.equal(q.subtotal, 21.4)
   assert.equal(q.commission_amount, 2)
   assert.equal(q.restaurant_payout, 19.4)
+})
+
+test('Stripe Connect: lo que se transfiere al restaurante', () => {
+  const s = { restaurant_commission_pct: 10, price_markup_pct: 0, igic_pct: 7, delivery_base_fee: 2, delivery_fee_per_km: 0, max_tip: 50 }
+  // 20 € + 7 % IGIC, comisión 2 €: el restaurante recibe 19,40 €; envío y propina se quedan en rabeat
+  const q = quote({ items: [{ base_price: 20, qty: 1 }], settings: s, km: 1, tip: 3 })
+  assert.equal(q.restaurant_payout, 19.4)
+  assert.equal(connectTransfer(q), 19.4)
+  // Una promo que deja el total por debajo de su neto: se transfiere lo cobrado menos la propina
+  const promo = { kind: 'amount', value: 20, min_subtotal: 0 }
+  const p = quote({ items: [{ base_price: 20, qty: 1 }], settings: s, km: 1, tip: 3, promo })
+  assert.equal(p.total, round(21.4 + 2.14 + 3 - 20))
+  assert.equal(connectTransfer(p), round(p.total - 3))
+  assert.equal(connectTransfer({ restaurant_payout: 10, total: 0, tip: 0 }), 0)
 })

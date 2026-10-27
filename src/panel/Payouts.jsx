@@ -19,6 +19,9 @@ function downloadCsv(name, rows) {
 
 const num = (n) => Number(n).toFixed(2).replace('.', ',')
 
+// Lo que queda por transferir a mano: neto − cobrado en el local + propinas − lo que ya envió Stripe Connect
+const pending = (r) => r.payout - (r.cash_in_restaurant ?? 0) + r.staff_tips - r.connect
+
 export default function Payouts() {
   const { settings } = useSettings()
   const [period, setPeriod] = useState('month')
@@ -30,17 +33,25 @@ export default function Payouts() {
       supabase.rpc('staff_tips_report', { p_restaurant: null, ...range }).then(unwrap),
     ])
     // Propinas al equipo (QR de mesa): se suman a lo que se transfiere a cada restaurante
-    const tipsBy = Object.fromEntries(tips.by_restaurant.map((t) => [t.id, Number(t.total)]))
-    const rows = report.by_restaurant.map((r) => ({ ...r, staff_tips: tipsBy[r.id] ?? 0 }))
+    // Stripe Connect: lo transferido automáticamente (ventas y propinas) ya no hay que pagarlo a mano
+    const tipsBy = Object.fromEntries(tips.by_restaurant.map((t) => [t.id, t]))
+    const rows = report.by_restaurant.map((r) => ({
+      ...r,
+      staff_tips: Number(tipsBy[r.id]?.total ?? 0),
+      connect: Number(r.connect_transferred ?? 0) + Number(tipsBy[r.id]?.connect_total ?? 0),
+    }))
     for (const t of tips.by_restaurant)
       if (!rows.some((r) => r.id === t.id))
-        rows.push({ id: t.id, name: t.name, orders: 0, gross: 0, commission: 0, payout: 0, cash_in_restaurant: 0, cash_collected: 0, staff_tips: Number(t.total) })
-    return { ...report, by_restaurant: rows, staff_tips: Number(tips.total) }
+        rows.push({
+          id: t.id, name: t.name, orders: 0, gross: 0, commission: 0, payout: 0, cash_in_restaurant: 0, cash_collected: 0,
+          staff_tips: Number(t.total), connect: Number(t.connect_total ?? 0),
+        })
+    return { ...report, by_restaurant: rows, staff_tips: Number(tips.total), connect: rows.reduce((n, r) => n + r.connect, 0) }
   }, [period, settings.timezone])
 
   return (
     <>
-      <PageTitle subtitle="Cobro centralizado: lo que la plataforma debe a cada restaurante y repartidor">Liquidaciones</PageTitle>
+      <PageTitle subtitle="Lo que la plataforma debe a cada restaurante y repartidor. Con Stripe Connect, la parte del restaurante le llega sola">Liquidaciones</PageTitle>
       <div className="mb-4">
         <PeriodPicker value={period} onChange={setPeriod} />
       </div>
@@ -53,7 +64,7 @@ export default function Payouts() {
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatTile label="Facturado a clientes" value={money(data.gmv)} hint={`${data.orders} pedidos · ${data.dine_in_orders ?? 0} en mesa · ${data.cash_orders} en efectivo`} />
             <StatTile label="Ingresos plataforma" value={money(platformRevenue(data))} accent hint="recargo + comisión + envío − descuentos, sin IGIC" />
-            <StatTile label="A pagar a restaurantes" value={money(data.restaurant_payouts)} />
+            <StatTile label="A pagar a restaurantes" value={money(data.restaurant_payouts)} hint={data.connect > 0 ? `${money(data.connect)} ya transferido por Stripe` : undefined} />
             <StatTile label="Propinas a repartidores" value={money(data.tips)} />
           </div>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -77,7 +88,7 @@ export default function Payouts() {
                 className="!py-2"
                 onClick={() =>
                   downloadCsv(`liquidacion-restaurantes-${period}.csv`, [
-                    ['Restaurante', 'Pedidos', 'En mesa', 'Ventas', 'Comisión', 'Neto restaurante', 'Cobrado por el local', 'Propinas equipo', 'A transferir', 'Efectivo cobrado por riders'],
+                    ['Restaurante', 'Pedidos', 'En mesa', 'Ventas', 'Comisión', 'Neto restaurante', 'Cobrado por el local', 'Propinas equipo', 'Transferido por Stripe', 'A transferir', 'Efectivo cobrado por riders'],
                     ...data.by_restaurant.map((r) => [
                       r.name,
                       r.orders,
@@ -87,7 +98,8 @@ export default function Payouts() {
                       num(r.payout),
                       num(r.cash_in_restaurant ?? 0),
                       num(r.staff_tips),
-                      num(r.payout - (r.cash_in_restaurant ?? 0) + r.staff_tips),
+                      num(r.connect),
+                      num(pending(r)),
                       num(r.cash_collected),
                     ]),
                   ])
@@ -96,7 +108,7 @@ export default function Payouts() {
                 <Icon name="receipt" className="size-4" /> CSV
               </Button>
             </div>
-            <Table head={['Restaurante', 'Pedidos', 'Ventas', 'Comisión', 'Cobrado en el local', 'Propinas equipo', 'A transferir']}>
+            <Table head={['Restaurante', 'Pedidos', 'Ventas', 'Comisión', 'Cobrado en el local', 'Propinas equipo', 'Ya por Stripe', 'A transferir']}>
               {data.by_restaurant.map((r) => (
                 <tr key={r.id}>
                   <td className="px-4 py-3 font-semibold">{r.name}</td>
@@ -108,12 +120,13 @@ export default function Payouts() {
                   <td className="px-4 py-3 text-right text-neutral-500">−{money(r.commission)}</td>
                   <td className="px-4 py-3 text-right text-neutral-500">{money(r.cash_in_restaurant ?? 0)}</td>
                   <td className="px-4 py-3 text-right text-neutral-500">{r.staff_tips > 0 ? `+${money(r.staff_tips)}` : '—'}</td>
-                  <td className="px-4 py-3 text-right font-extrabold">{money(r.payout - (r.cash_in_restaurant ?? 0) + r.staff_tips)}</td>
+                  <td className="px-4 py-3 text-right text-emerald-700">{r.connect > 0 ? `−${money(r.connect)}` : '—'}</td>
+                  <td className="px-4 py-3 text-right font-extrabold">{money(pending(r))}</td>
                 </tr>
               ))}
               {!data.by_restaurant.length && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-6 text-center text-neutral-400">
+                  <td colSpan={8} className="px-4 py-6 text-center text-neutral-400">
                     Sin ventas en este periodo
                   </td>
                 </tr>
@@ -123,6 +136,7 @@ export default function Payouts() {
 
           <p className="-mt-3 text-xs text-neutral-500">
             «Cobrado en el local» son los pedidos en mesa pagados en el propio restaurante: ya tiene ese dinero, así que se descuenta de lo que hay que transferirle.
+            «Ya por Stripe» es lo que Stripe Connect transfirió automáticamente a su cuenta en cada cobro online.
             Si sale negativo, es el restaurante quien debe la comisión a rabeat.
           </p>
           <section>

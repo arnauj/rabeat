@@ -26,7 +26,22 @@ Los porcentajes y tarifas se cambian en **Panel → Comisiones y envío**. En la
 
 ## Pagos (Stripe)
 
-El cobro es centralizado: Stripe Checkout cobra en la cuenta de la plataforma y **Panel → Liquidaciones** muestra lo que se debe a cada restaurante y repartidor (con exportación CSV).
+Stripe Checkout cobra en la cuenta de la plataforma y, con **Stripe Connect**, cada restaurante recibe su parte en su propia cuenta al momento. **Panel → Liquidaciones** muestra lo que aún se debe a mano a cada restaurante y repartidor (con exportación CSV).
+
+### Stripe Connect (cada restaurante cobra en su cuenta)
+
+- **Cuentas Express**: en **Panel → Restaurantes → (restaurante) → Datos → Cobros**, el restaurante pulsa «Conectar con Stripe», completa el alta en Stripe (datos fiscales, DNI/CIF e IBAN) y vuelve al panel. Desde ahí también abre su panel de Stripe con sus cobros.
+- **Destination charges**: rabeat cobra al cliente y Stripe transfiere al instante al restaurante su neto (*ventas − comisión + IGIC de su comida*). rabeat se queda el recargo, la comisión, el envío y la propina del repartidor, y asume las comisiones de Stripe. Si una promoción deja el total por debajo del neto del restaurante, se transfiere lo cobrado (sin la propina) y el resto queda pendiente en Liquidaciones.
+- Las **propinas al equipo** desde el QR de la mesa van íntegras a la cuenta del restaurante. Las propinas a repartidores se quedan en rabeat y se liquidan como hasta ahora.
+- **Sin cuenta activa** (alta sin terminar o en revisión), los cobros siguen centralizados y se liquidan a mano. Si Stripe rechaza un cobro con Connect (p. ej. un método de pago que no lo admite), se reintenta de forma centralizada.
+- Cada pedido guarda la cuenta (`stripe_account_id`) y el importe transferido (`connect_amount`); Liquidaciones lo descuenta de «A transferir».
+- Las cancelaciones con reembolso se hacen desde Stripe marcando «revertir transferencia» para recuperar la parte del restaurante.
+
+Para activarlo:
+
+1. En Stripe → Connect, completa el perfil de la plataforma (marketplace, cuentas Express, España) y la marca que verán los restaurantes.
+2. En Stripe → Desarrolladores → Webhooks, añade un segundo endpoint a la misma URL `…/functions/v1/stripe-webhook` escuchando **eventos de cuentas conectadas** con `account.updated`, y pon su secreto en `STRIPE_CONNECT_WEBHOOK_SECRET` (`supabase/.env`).
+3. `npm run supabase:migrate`, `npm run supabase:secrets` y `npm run supabase:functions`.
 
 Métodos de pago online, todos a través de Stripe Checkout:
 
@@ -78,8 +93,8 @@ Los usuarios iniciales se definen en `supabase/users.local.json` (no se sube a G
 ```
 src/                 app (cliente, panel en src/panel, reparto en src/rider)
 supabase/migrations  esquema, seguridad (RLS) y funciones SQL
-supabase/functions   Edge Functions: create-order, stripe-webhook, confirm-payment,
-                     add-tip, notify, admin-users, public-config
+supabase/functions   Edge Functions: create-order, stripe-webhook, confirm-payment, stripe-connect,
+                     add-tip, table-tip, notify, admin-users, public-config
 supabase/functions/_shared/{pricing,hours}.js  lógica compartida app ↔ servidor
 scripts/             instalación en Supabase, seed y pruebas
 ```

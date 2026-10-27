@@ -131,3 +131,8 @@ export function quote({ items, settings, km, tip = 0, promo = null }) {
     restaurant_payout: round2(restaurantSubtotal - commission + restaurantTax),
   }
 }
+
+// Stripe Connect: parte del cobro que se transfiere al instante al restaurante.
+// Es su neto (ventas − comisión + IGIC de su comida), sin superar lo cobrado menos la propina del repartidor,
+// que se queda en rabeat. Si una promoción deja el total por debajo, el resto se liquida a mano.
+export const connectTransfer = (q) => round2(Math.max(0, Math.min(Number(q.restaurant_payout), Number(q.total) - Number(q.tip ?? 0))))

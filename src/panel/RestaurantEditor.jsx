@@ -14,6 +14,7 @@ import { CATEGORIES } from '../data/categories.js'
 import HoursEditor from './HoursEditor.jsx'
 import MenuEditor from './MenuEditor.jsx'
 import TablesEditor from './TablesEditor.jsx'
+import StripeConnectCard from './StripeConnect.jsx'
 
 const TABS = [
   { id: 'datos', label: 'Datos', icon: 'store' },
@@ -165,6 +166,7 @@ function InfoForm({ restaurant: r, onSaved }) {
 
         <OrderEmails restaurant={r} value={form.email} onChange={set('email')} />
         <RatesInfo restaurant={r} isSuper={isSuper} />
+        <StripeConnectCard restaurant={r} />
 
         <Card title="Ubicación" icon="pin" action={<Button variant="soft" className="!py-2" onClick={() => setMapOpen(true)}>{form.lat == null ? 'Situar en el mapa' : 'Cambiar'}</Button>}>
           {form.lat == null ? (
